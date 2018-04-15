@@ -10,7 +10,7 @@ NUM_EPOCHS = 500
 BATCH_SIZE = 50
 WIDTH = 227
 HEIGHT = 227
-train_txt = "train_set.txt"
+train_txt = "trainSet.txt"
 logfile = "train.log"
 
 
