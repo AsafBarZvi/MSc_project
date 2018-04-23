@@ -1,20 +1,21 @@
 import tensorflow as tf
 import numpy as np
-class TRACKNET: 
-    def __init__(self, batch_size, train = True):
+class TRACKNET:
+    def __init__(self, batch_size, wd, train = True):
         self.parameters = {}
         self.batch_size = batch_size
         self.target = tf.placeholder(tf.float32, [batch_size, 227, 227, 3])
         self.image = tf.placeholder(tf.float32, [batch_size, 227, 227, 3])
         self.bbox = tf.placeholder(tf.float32, [batch_size, 4])
         self.train = train
-        self.wd = 0.0005
+        self.wd = wd
+
     def build(self):
         ########### for target ###########
         # [filter_height, filter_width, in_channels, out_channels]
         self.target_conv1 = self._conv_relu_layer(bottom = self.target, filter_size = [11, 11, 3, 96],
                                                     strides = [1,4,4,1], name = "target_conv_1")
-        
+
         # now 55 x 55 x 96
         self.target_pool1 = tf.nn.max_pool(self.target_conv1, ksize = [1, 3, 3, 1], strides=[1, 2, 2, 1],
                                                     padding='VALID', name='target_pool1')
@@ -36,22 +37,22 @@ class TRACKNET:
         self.target_conv3 = self._conv_relu_layer(bottom = self.target_lrn2,filter_size = [3, 3, 256, 384],
                                                     strides = [1,1,1,1], pad = 1, name="target_conv_3")
         # now 13 x 13 x 384
-        self.target_conv4 = self._conv_relu_layer(bottom = self.target_conv3,filter_size = [3, 3, 192, 384], bias_init = 1.0, 
+        self.target_conv4 = self._conv_relu_layer(bottom = self.target_conv3,filter_size = [3, 3, 192, 384], bias_init = 1.0,
                                                     strides = [1,1,1,1], pad = 1, group = 2, name="target_conv_4")
         # now 13 x 13 x 384
-        self.target_conv5 = self._conv_relu_layer(bottom = self.target_conv4,filter_size = [3, 3, 192, 256], bias_init = 1.0, 
+        self.target_conv5 = self._conv_relu_layer(bottom = self.target_conv4,filter_size = [3, 3, 192, 256], bias_init = 1.0,
                                                     strides = [1,1,1,1], pad = 1, group = 2, name="target_conv_5")
         # now 13 x 13 x 256
         self.target_pool5 = tf.nn.max_pool(self.target_conv5, ksize=[1, 3, 3, 1], strides=[1, 2, 2, 1],
                                                     padding='VALID', name='target_pool5')
         # now 6 x 6 x 256
-        
+
 
         ########### for image ###########
         # [filter_height, filter_width, in_channels, out_channels]
         self.image_conv1 = self._conv_relu_layer(bottom = self.image, filter_size = [11, 11, 3, 96],
                                                     strides = [1,4,4,1], name = "image_conv_1")
-        
+
         # now 55 x 55 x 96
         self.image_pool1 = tf.nn.max_pool(self.image_conv1, ksize = [1, 3, 3, 1], strides=[1, 2, 2, 1],
                                                     padding='VALID', name='image_pool1')
@@ -79,11 +80,11 @@ class TRACKNET:
                                                     strides = [1,1,1,1], pad = 1, name="image_conv_3")
 
         # now 13 x 13 x 384
-        self.image_conv4 = self._conv_relu_layer(bottom = self.image_conv3,filter_size = [3, 3, 192, 384], 
+        self.image_conv4 = self._conv_relu_layer(bottom = self.image_conv3,filter_size = [3, 3, 192, 384],
                                                     strides = [1,1,1,1], pad = 1, group = 2, name="image_conv_4")
 
         # now 13 x 13 x 384
-        self.image_conv5 = self._conv_relu_layer(bottom = self.image_conv4,filter_size = [3, 3, 192, 256], bias_init = 1.0, 
+        self.image_conv5 = self._conv_relu_layer(bottom = self.image_conv4,filter_size = [3, 3, 192, 256], bias_init = 1.0,
                                                     strides = [1,1,1,1], pad = 1, group = 2, name="image_conv_5")
 
         # now 13 x 13 x 256
@@ -101,7 +102,7 @@ class TRACKNET:
         self.concat = tf.concat([self.target_pool5, self.image_pool5], axis = 3) # 0, 1, 2, 3 - > 2, 3, 1, 0
 
         # important, since caffe has different layer dimension order
-        self.concat = tf.transpose(self.concat, perm=[0,3,1,2]) 
+        self.concat = tf.transpose(self.concat, perm=[0,3,1,2])
 
         ########### fully connencted layers ###########
         # 6 * 6 * 256 * 2 == 18432
@@ -275,7 +276,7 @@ class TRACKNET:
         sess.run(self.parameters['fc4'][1].assign(weights_dict['fc8-shapes']['bias']))
 
 
-    
+
     def test(self):
         sess = tf.Session()
         a = np.full((self.batch_size,227,227,3), 1) # numpy.full(shape, fill_value, dtype=None, order='C')

@@ -1,140 +1,298 @@
-# train file
-
-import logging
-import time
-import tensorflow as tf
+import math
+import sys
 import os
+
+import tensorflow as tf
+import numpy as np
+
+from average_precision import APCalculator, APs2mAP , CurveAPCalculator
+from dataPrep import DataPrep
+from utils import *
+from tqdm import tqdm
+import json
+import os
+from timer import timer_dict , timerStats
+from default import config , printCfg
+
 import goturn_net
 
-NUM_EPOCHS = 500
-BATCH_SIZE = 50
-WIDTH = 227
-HEIGHT = 227
-train_txt = "trainSet.txt"
-logfile = "train.log"
+
+cfg_json = json.load(open(sys.argv[1]))
+config.__dict__.update(cfg_json)
+config.name = os.path.split(sys.argv[1])[-1]
+os.environ['CUDA_VISIBLE_DEVICES'] = str(config.gpu)
+print "{} \n {}".format(sys.argv[1],printCfg())
 
 
-def load_training_set(train_file):
-    '''
-    return train_set
-    '''
-    ftrain = open(train_file, "r")
-    trainlines = ftrain.read().splitlines()
-    train_target = []
-    train_search = []
-    train_box = []
-    for line in trainlines:
-        line = line.split(",")
-        train_target.append(line[0])
-        train_search.append(line[1])
-        box = [10 * float(line[2]), 10 * float(line[3]), 10 * float(line[4]), 10 * float(line[5])]
-        train_box.append(box)
-    ftrain.close()
+#-------------------------------------------------------------------------------
+def compute_lr(lr_values, lr_boundaries):
+    with tf.variable_scope('learning_rate'):
+        global_step = tf.Variable(0, trainable=False, name='global_step')
+        lr = tf.train.piecewise_constant(global_step, lr_boundaries, lr_values)
+    return lr, global_step
 
-    return [train_target, train_search, train_box]
+#-------------------------------------------------------------------------------
+def main():
+    #---------------------------------------------------------------------------
+    # Parse the commandline
+    #---------------------------------------------------------------------------
+    args = config
 
+    snaps_path = os.path.join(config.snapdir , config.name)
+    #---------------------------------------------------------------------------
+    # Find an existing checkpoint
+    #---------------------------------------------------------------------------
+    start_epoch = 0
+    checkpoint_file = args.checkpoint_file
+    if args.continue_training:
+        state = tf.train.get_checkpoint_state(snaps_path)
+        if state is None:
+            print('[!] No network state found in ' + snaps_path)
+            return 1
 
-def data_reader(input_queue):
-    '''
-    this function only read the one pair of images and from the queue
-    '''
-    search_img = tf.read_file(input_queue[0])
-    target_img = tf.read_file(input_queue[1])
-    search_tensor = tf.to_float(tf.image.decode_jpeg(search_img, channels=3))
-    search_tensor = tf.image.resize_images(search_tensor, [HEIGHT, WIDTH],
-                                           method=tf.image.ResizeMethod.BILINEAR)
-    target_tensor = tf.to_float(tf.image.decode_jpeg(target_img, channels=3))
-    target_tensor = tf.image.resize_images(target_tensor, [HEIGHT, WIDTH],
-                                           method=tf.image.ResizeMethod.BILINEAR)
-    box_tensor = input_queue[2]
-    return [search_tensor, target_tensor, box_tensor]
+        ckpt_paths = state.all_model_checkpoint_paths
+        if not ckpt_paths:
+            print('[!] No network state found in ' + snaps_path)
+            return 1
 
+        last_epoch = None
+        checkpoint_file = None
+        for ckpt in ckpt_paths:
+            ckpt_num = os.path.basename(ckpt).split('.')[0][1:]
+            try:
+                ckpt_num = int(ckpt_num)
+            except ValueError:
+                continue
+            if last_epoch is None or last_epoch < ckpt_num:
+                last_epoch = ckpt_num
+                checkpoint_file = ckpt
 
-def next_batch(input_queue):
-    min_queue_examples = 128
-    num_threads = 8
-    [search_tensor, target_tensor, box_tensor] = data_reader(input_queue)
-    [search_batch, target_batch, box_batch] = tf.train.shuffle_batch(
-        [search_tensor, target_tensor, box_tensor],
-        batch_size=BATCH_SIZE,
-        num_threads=num_threads,
-        capacity=min_queue_examples + (num_threads + 2) * BATCH_SIZE,
-        seed=88,
-        min_after_dequeue=min_queue_examples)
-    return [search_batch, target_batch, box_batch]
+        if checkpoint_file is None:
+            print('[!] No checkpoints found, cannot continue!')
+            return 1
 
+        metagraph_file = checkpoint_file + '.meta'
 
-if __name__ == "__main__":
-    if (os.path.isfile(logfile)):
-        os.remove(logfile)
-    logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s',
-                        level=logging.DEBUG, filename=logfile)
+        if not os.path.exists(metagraph_file):
+            print('[!] Cannot find metagraph', metagraph_file)
+            return 1
+        start_epoch = last_epoch
 
-    [train_target, train_search, train_box] = load_training_set(train_txt)
-    target_tensors = tf.convert_to_tensor(train_target, dtype=tf.string)
-    search_tensors = tf.convert_to_tensor(train_search, dtype=tf.string)
-    box_tensors = tf.convert_to_tensor(train_box, dtype=tf.float64)
-    input_queue = tf.train.slice_input_producer([search_tensors, target_tensors, box_tensors], shuffle=True)
-    batch_queue = next_batch(input_queue)
-    tracknet = goturn_net.TRACKNET(BATCH_SIZE)
-    tracknet.build()
+    #---------------------------------------------------------------------------
+    # Create a project directory
+    #---------------------------------------------------------------------------
+    else:
+        try:
+            print('[i] Creating directory {}...'.format(snaps_path))
+            os.makedirs(snaps_path)
+        except Exception as e:
+            print('[!]', str(e))
+            #return 1
 
-    global_step = tf.Variable(0, trainable=False, name="global_step")
+    print('[i] Starting at epoch:    ', start_epoch+1)
 
-    train_step = tf.train.AdamOptimizer(0.00001, 0.9).minimize( \
-        tracknet.loss_wdecay, global_step=global_step)
-    merged_summary = tf.summary.merge_all()
-    sess = tf.Session()
-    train_writer = tf.summary.FileWriter('./train_summary', sess.graph)
-    init = tf.global_variables_initializer()
-    init_local = tf.local_variables_initializer()
-    sess.run(init)
-    sess.run(init_local)
-
-    coord = tf.train.Coordinator()
-    # start the threads
-    tf.train.start_queue_runners(sess=sess, coord=coord)
-
-    ckpt_dir = "./checkpoints"
-    if not os.path.exists(ckpt_dir):
-        os.makedirs(ckpt_dir)
-    ckpt = tf.train.get_checkpoint_state(ckpt_dir)
-    start = 0
-    if ckpt and ckpt.model_checkpoint_path:
-        start = int(ckpt.model_checkpoint_path.split("-")[1])
-        logging.info("start by iteration: %d" % (start))
-        saver = tf.train.Saver()
-        saver.restore(sess, ckpt.model_checkpoint_path)
-    assign_op = global_step.assign(start)
-    sess.run(assign_op)
-    model_saver = tf.train.Saver(max_to_keep=3)
+    #---------------------------------------------------------------------------
+    # Configure the training data
+    #---------------------------------------------------------------------------
+    print('[i] Configuring the training data...')
     try:
-        for i in range(start, int(len(train_box) / BATCH_SIZE * NUM_EPOCHS)):
-            if i % int(len(train_box) / BATCH_SIZE) == 0:
-                logging.info("start epoch[%d]" % (int(i / len(train_box) * BATCH_SIZE)))
-                if i > start:
-                    save_ckpt = "checkpoint.ckpt"
-                    last_save_itr = i
-                    model_saver.save(sess, "checkpoints/" + save_ckpt, global_step=i + 1)
-            print(global_step.eval(session=sess))
+        dp = dataPrep(args.data_dir, args.batch_size)
+        print('[i] # training samples:   ', dp.num_train)
+        print('[i] # validation samples: ', dp.num_valid)
+        print('[i] # batch size train: ', args.batch_size)
+    except (AttributeError, RuntimeError) as e:
+        print('[!] Unable to load training data:', str(e))
+        return 1
 
-            cur_batch = sess.run(batch_queue)
+    #---------------------------------------------------------------------------
+    # Create the network
+    #---------------------------------------------------------------------------
+    with tf.Session() as sess:
+        print('[i] Creating the model...')
+        n_train_batches = int(math.ceil(td.num_train/args.batch_size))
+        n_valid_batches = int(math.ceil(td.num_valid/args.batch_size))
 
-            start_time = time.time()
-            [_, loss] = sess.run([train_step, tracknet.loss], feed_dict={tracknet.image: cur_batch[0],
+        lr_values = args.lr_values.split(';')
+        try:
+            lr_values = [float(x) for x in lr_values]
+        except ValueError:
+            print('[!] Learning rate values must be floats')
+            sys.exit(1)
+
+        lr_boundaries = args.lr_boundaries.split(';')
+        try:
+            lr_boundaries = [int(x) for x in lr_boundaries]
+        except ValueError:
+            print('[!] Learning rate boundaries must be ints')
+            sys.exit(1)
+
+        ret = compute_lr(lr_values, lr_boundaries)
+        learning_rate, global_step = ret
+
+        tracknet = goturn_net.TRACKNET(args.batch_size, args.weight_decay)
+        tracknet.build()
+
+        with tf.variable_scope('train_step'):
+            train_step = tf.train.AdamOptimizer(learning_rate, args.momentum).minimize( \
+                    tracknet.loss_wdecay, global_step=global_step, name='train_step')
+
+        init = tf.global_variables_initializer()
+        init_local = tf.local_variables_initializer()
+        sess.run(init)
+        sess.run(init_local)
+
+        saver = tf.train.Saver(max_to_keep=config.max_snapshots_to_keep)
+
+        if (start_epoch != 0) or not checkpoint_file is None:
+            try:
+                saver.restore(sess , checkpoint_file)
+            except Exception as E:
+                print E
+
+        if (not checkpoint_file is None) and not args.continue_training:
+            sess.run([tf.assign(global_step,0)])
+
+        initialize_uninitialized_variables(sess)
+
+        #-----------------------------------------------------------------------
+        # Create various helpers
+        #-----------------------------------------------------------------------
+        if not os.path.exists(os.path.join(args.logdir , config.name)):
+            os.mkdir(os.path.join(args.logdir , config.name))
+
+        summary_writer = tf.summary.FileWriter(os.path.join(args.logdir , config.name), sess.graph)
+
+        training_ap_calc = APCalculator()
+        validation_ap_calc = APCalculator()
+
+        #-----------------------------------------------------------------------
+        # Summaries
+        #-----------------------------------------------------------------------
+        restore = start_epoch != 0
+
+        #training_ap = PrecisionSummary(sess, summary_writer, 'training', td.lname2id.keys(), restore)
+        #validation_ap = PrecisionSummary(sess, summary_writer, 'validation', td.lname2id.keys(), restore)
+
+        training_imgs = ImageSummary(sess, summary_writer, 'training', td.label_colors, restore)
+        validation_imgs = ImageSummary(sess, summary_writer, 'validation', td.label_colors, restore)
+
+        training_loss = LossSummary(sess, summary_writer, 'training', td.num_train)
+        validation_loss = LossSummary(sess, summary_writer, 'validation', td.num_valid)
+
+        lr_sum  = tf.summary.scalar("lr",learning_rate)
+        #-----------------------------------------------------------------------
+        # Get the initial snapshot of the network
+        #-----------------------------------------------------------------------
+        #net_summary_ops = net.build_summaries(restore)
+        #if start_epoch == 0:
+        #    net_summary = sess.run(net_summary_ops)
+        #    summary_writer.add_summary(net_summary, 0)
+        #summary_writer.flush()
+
+        #-----------------------------------------------------------------------
+        # Cycle through the epoch
+        #-----------------------------------------------------------------------
+        coord = tf.train.Coordinator()
+        # start the threads
+        tf.train.start_queue_runners(sess=sess, coord=coord)
+        print('[i] Training...')
+        for e in range(start_epoch, args.epochs):
+            training_imgs_samples = []
+            validation_imgs_samples = []
+
+            #-------------------------------------------------------------------
+            # Train
+            #-------------------------------------------------------------------
+            description = '[i] Train {:>2}/{}'.format(e+1, args.epochs)
+            for idx in tqdm(range(total=n_train_batches), desc=description, unit='batches'):
+
+                cur_batch = sess.run(dp.batch_queue)
+
+                if len(training_imgs_samples) < 3:
+                    saved_images = np.copy(curr_batch[1][:3])
+
+                with timer_dict['train']:
+                    [res, loss] = sess.run([tracknet.fc4, tracknet.loss, train_step], feed_dict={tracknet.image: cur_batch[0],
                                                                          tracknet.target: cur_batch[1],
                                                                          tracknet.bbox: cur_batch[2]})
-            logging.debug(
-                'Train: time elapsed: %.3fs, average_loss: %f' % (time.time() - start_time, loss / BATCH_SIZE))
 
-            if i % 10 == 0 and i > start:
-                summary = sess.run(merged_summary, feed_dict={tracknet.image: cur_batch[0],
-                                                              tracknet.target: cur_batch[1],
-                                                              tracknet.bbox: cur_batch[2]})
-                train_writer.add_summary(summary, i)
-    except KeyboardInterrupt:
-        print("get keyboard interrupt")
-        if (i - start > 1000):
-            model_saver = tf.train.Saver()
-            save_ckpt = "checkpoint.ckpt"
-            model_saver.save(sess, "checkpoints/" + save_ckpt, global_step=i + 1)
+
+                training_loss.add(loss, cur_batch[1].shape[0])
+
+                if e == 0: continue
+
+                with timer_dict['summary']:
+                    for i in range(result.shape[0]):
+                        if (idx % 100) != 0:
+                            continue
+
+                        training_ap_calc.add_detections(cur_batch[2][i],res[i])
+
+
+                        if len(training_imgs_samples) < 3:
+                            bbox = (res[i]/10)*227
+                            training_imgs_samples.append((saved_images[i], bbox))
+
+
+            timerStats()
+
+            #-------------------------------------------------------------------
+            # Validate
+            #-------------------------------------------------------------------
+            description = '[i] Valid {:>2}/{}'.format(e+1, args.epochs)
+            for idx in tqdm(range(total=n_valid_batches), desc=description, unit='batches'):
+
+                cur_batch = sess.run(dp.batch_test_queue)
+
+                [res, loss] = sess.run([tracknet.fc4, tracknet.loss], feed_dict={tracknet.image: cur_batch[0],
+                                                                         tracknet.target: cur_batch[1],
+                                                                         tracknet.bbox: cur_batch[2]})
+
+                validation_loss.add(loss, cur_batch[1].shape[0])
+
+                if e == 0: continue
+
+                for i in range(res.shape[0]):
+                    validation_ap_calc.add_detections(cur_batch[2][i],res[i])
+
+                    if len(validation_imgs_samples) < 3:
+                        bbox = (res[i]/10)*227
+                        validation_imgs_samples.append((np.copy(curr_batch[1][i]), bbox))
+
+            #-------------------------------------------------------------------
+            # Write summaries
+            #-------------------------------------------------------------------
+            training_loss.push(e+1)
+            validation_loss.push(e+1)
+
+            #net_summary = sess.run(net_summary_ops)
+            summary_writer.add_summary(sess.run([lr_sum])[0], e+1)
+
+            #training_ap.push(e+1, mAP, APs)
+            #validation_ap.push(e+1, mAP, APs)
+
+
+            training_ap_calc.clear()
+            validation_ap_calc.clear()
+
+            training_imgs.push(e+1, training_imgs_samples)
+            validation_imgs.push(e+1, validation_imgs_samples)
+
+            summary_writer.flush()
+
+            #-------------------------------------------------------------------
+            # Save a checktpoint
+            #-------------------------------------------------------------------
+            if (e+1) % args.checkpoint_interval == 0:
+                checkpoint = '{}/e{}.ckpt'.format(snaps_path, e+1)
+                saver.save(sess, checkpoint)
+                print('[i] Checkpoint saved:', checkpoint)
+
+        checkpoint = '{}/final.ckpt'.format(snaps_path)
+        saver.save(sess, checkpoint)
+        print('[i] Checkpoint saved:', checkpoint)
+
+    return 0
+
+if __name__ == '__main__':
+    sys.exit(main())
