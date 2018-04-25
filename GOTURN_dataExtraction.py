@@ -347,7 +347,7 @@ for video in videos:
             annFile.write("{},{},{},{}".format(bbx1CurrCrop, bby1CurrCrop, bbx2CurrCrop, bby2CurrCrop))
             annFile.close()
             votTestSet.write("{}.jpg,{}.jpg,{},{},{},{}\n".format(fileNameTarget, fileNameSearch, bbx1CurrCrop, bby1CurrCrop, bbx2CurrCrop, bby2CurrCrop))
-            cv2.rectangle(frameCurrCropPads, (bbx1CurrCrop,bby1CurrCrop), (bbx2CurrCrop,bby2CurrCrop), (0,255,0), 3)
+            #cv2.rectangle(frameCurrCropPads, (bbx1CurrCrop,bby1CurrCrop), (bbx2CurrCrop,bby2CurrCrop), (0,255,0), 3)
             #cv2.rectangle(frameCurr, (bbx1Curr,bby1Curr), (bbx2Curr,bby2Curr), (0,255,0), 3)
             #viewer(frameCurrCropPads)
 

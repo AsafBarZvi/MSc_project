@@ -1,11 +1,11 @@
 import math
 import sys
 import os
-
+import shutil
 import tensorflow as tf
 import numpy as np
 
-from average_precision import APCalculator, APs2mAP , CurveAPCalculator
+from average_precision import APCalculator
 from dataPrep import DataPrep
 from utils import *
 from tqdm import tqdm
@@ -161,7 +161,10 @@ def main():
         #-----------------------------------------------------------------------
         if not os.path.exists(args.logdir):
             os.mkdir(args.logdir)
-        if not os.path.exists(os.path.join(args.logdir , config.name)):
+        if os.path.exists(os.path.join(args.logdir , config.name)):
+            shutil.rmtree(os.path.join(args.logdir , config.name))
+            os.mkdir(os.path.join(args.logdir , config.name))
+        else:
             os.mkdir(os.path.join(args.logdir , config.name))
 
         merged_summary = tf.summary.merge_all()
@@ -233,14 +236,14 @@ def main():
                 #-------------------------------------------------------------------
                 # Write summaries
                 #-------------------------------------------------------------------
-                training_loss.push(e+1)
+                training_loss.push((e+1)*idx)
 
                 summary = sess.run(merged_summary,feed_dict={tracknet.image: cur_batch[0],
                                                          tracknet.target: cur_batch[1],
                                                          tracknet.bbox: cur_batch[2]})
-                summary_writer.add_summary(summary , e+1)
+                summary_writer.add_summary(summary , (e+1)*idx)
 
-                training_imgs.push(e+1, training_imgs_samples)
+                training_imgs.push((e+1)*idx, training_imgs_samples)
                 training_imgs_samples = []
 
                 summary_writer.flush()
@@ -272,13 +275,13 @@ def main():
                 #-------------------------------------------------------------------
                 # Write summaries
                 #-------------------------------------------------------------------
-                validation_loss.push(e+1)
+                validation_loss.push((e+1)*idx)
 
                 #net_summary = sess.run(net_summary_ops)
                 summary = sess.run(merged_summary,feed_dict={tracknet.image: cur_batch[0],
                                                          tracknet.target: cur_batch[1],
                                                          tracknet.bbox: cur_batch[2]})
-                summary_writer.add_summary(summary , e+1)
+                summary_writer.add_summary(summary , (e+1)*idx)
 
                 #training_ap.push(e+1, mAP, APs)
                 #validation_ap.push(e+1, mAP, APs)
@@ -286,7 +289,7 @@ def main():
                 #training_ap_calc.clear()
                 #validation_ap_calc.clear()
 
-                validation_imgs.push(e+1, validation_imgs_samples)
+                validation_imgs.push((e+1)*idx, validation_imgs_samples)
                 validation_imgs_samples = []
 
                 summary_writer.flush()
