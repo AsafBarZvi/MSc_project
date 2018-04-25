@@ -15,11 +15,10 @@ from timer import timer_dict , timerStats
 from default import config , printCfg
 
 import goturn_net
+#import ipdb
 
-
-cfg_json = json.load(open(sys.argv[1]))
-config.__dict__.update(cfg_json)
-config.name = os.path.split(sys.argv[1])[-1]
+config.__dict__.update()
+config.name = sys.argv[1]
 os.environ['CUDA_VISIBLE_DEVICES'] = str(config.gpu)
 print "{} \n {}".format(sys.argv[1],printCfg())
 
@@ -74,7 +73,7 @@ def main():
         metagraph_file = checkpoint_file + '.meta'
 
         if not os.path.exists(metagraph_file):
-            print('[!] Cannot find metagraph', metagraph_file)
+            print('[!] Cannot find metagraph'.format(metagraph_file))
             return 1
         start_epoch = last_epoch
 
@@ -86,22 +85,23 @@ def main():
             print('[i] Creating directory {}...'.format(snaps_path))
             os.makedirs(snaps_path)
         except Exception as e:
-            print('[!]', str(e))
+            print('[!] {}'.format( str(e)))
             #return 1
 
-    print('[i] Starting at epoch:    ', start_epoch+1)
+    print('[i] Starting at epoch: {}'.format( start_epoch+1))
 
     #---------------------------------------------------------------------------
     # Configure the training data
     #---------------------------------------------------------------------------
     print('[i] Configuring the training data...')
     try:
-        dp = dataPrep(args.data_dir, args.batch_size)
-        print('[i] # training samples:   ', dp.num_train)
-        print('[i] # validation samples: ', dp.num_valid)
-        print('[i] # batch size train: ', args.batch_size)
+        dp = DataPrep(args.data_dir)
+        dp.run(args.batch_size)
+        print('[i] # training samples: {}'.format(dp.num_train))
+        print('[i] # validation samples: {}'.format(dp.num_valid))
+        print('[i] # batch size train: {}'.format(args.batch_size))
     except (AttributeError, RuntimeError) as e:
-        print('[!] Unable to load training data:', str(e))
+        print('[!] Unable to load training data: ' + str(e))
         return 1
 
     #---------------------------------------------------------------------------
@@ -109,8 +109,10 @@ def main():
     #---------------------------------------------------------------------------
     with tf.Session() as sess:
         print('[i] Creating the model...')
-        n_train_batches = int(math.ceil(td.num_train/args.batch_size))
-        n_valid_batches = int(math.ceil(td.num_valid/args.batch_size))
+        n_train_batches = int(math.ceil(dp.num_train/args.batch_size))
+        n_valid_batches = int(math.ceil(dp.num_valid/args.batch_size))
+
+        n_valid_batches=100 #TODO - remove this line!
 
         lr_values = args.lr_values.split(';')
         try:
@@ -141,11 +143,11 @@ def main():
         sess.run(init)
         sess.run(init_local)
 
-        saver = tf.train.Saver(max_to_keep=config.max_snapshots_to_keep)
+        saver = tf.train.Saver(max_to_keep=args.max_snapshots_keep)
 
         if (start_epoch != 0) or not checkpoint_file is None:
             try:
-                saver.restore(sess , checkpoint_file)
+                saver.restore(sess, checkpoint_file)
             except Exception as E:
                 print E
 
@@ -157,13 +159,16 @@ def main():
         #-----------------------------------------------------------------------
         # Create various helpers
         #-----------------------------------------------------------------------
+        if not os.path.exists(args.logdir):
+            os.mkdir(args.logdir)
         if not os.path.exists(os.path.join(args.logdir , config.name)):
             os.mkdir(os.path.join(args.logdir , config.name))
 
+        merged_summary = tf.summary.merge_all()
         summary_writer = tf.summary.FileWriter(os.path.join(args.logdir , config.name), sess.graph)
 
-        training_ap_calc = APCalculator()
-        validation_ap_calc = APCalculator()
+        #training_ap_calc = APCalculator()
+        #validation_ap_calc = APCalculator()
 
         #-----------------------------------------------------------------------
         # Summaries
@@ -173,13 +178,12 @@ def main():
         #training_ap = PrecisionSummary(sess, summary_writer, 'training', td.lname2id.keys(), restore)
         #validation_ap = PrecisionSummary(sess, summary_writer, 'validation', td.lname2id.keys(), restore)
 
-        training_imgs = ImageSummary(sess, summary_writer, 'training', td.label_colors, restore)
-        validation_imgs = ImageSummary(sess, summary_writer, 'validation', td.label_colors, restore)
+        training_imgs = ImageSummary(sess, summary_writer, 'training', restore)
+        validation_imgs = ImageSummary(sess, summary_writer, 'validation', restore)
 
-        training_loss = LossSummary(sess, summary_writer, 'training', td.num_train)
-        validation_loss = LossSummary(sess, summary_writer, 'validation', td.num_valid)
+        training_loss = LossSummary(sess, summary_writer, 'training', args.summary_interval)
+        validation_loss = LossSummary(sess, summary_writer, 'validation', n_valid_batches)
 
-        lr_sum  = tf.summary.scalar("lr",learning_rate)
         #-----------------------------------------------------------------------
         # Get the initial snapshot of the network
         #-----------------------------------------------------------------------
@@ -204,93 +208,103 @@ def main():
             # Train
             #-------------------------------------------------------------------
             description = '[i] Train {:>2}/{}'.format(e+1, args.epochs)
-            for idx in tqdm(range(total=n_train_batches), desc=description, unit='batches'):
+            for idx in tqdm(range(n_train_batches), total=n_train_batches, desc=description, unit='batches', leave=False):
 
                 cur_batch = sess.run(dp.batch_queue)
 
-                if len(training_imgs_samples) < 3:
-                    saved_images = np.copy(curr_batch[1][:3])
-
                 with timer_dict['train']:
-                    [res, loss] = sess.run([tracknet.fc4, tracknet.loss, train_step], feed_dict={tracknet.image: cur_batch[0],
+                    [_, loss, res] = sess.run([train_step, tracknet.loss, tracknet.fc4], feed_dict={tracknet.image: cur_batch[0],
                                                                          tracknet.target: cur_batch[1],
                                                                          tracknet.bbox: cur_batch[2]})
 
+                training_loss.add(loss/args.batch_size)
 
-                training_loss.add(loss, cur_batch[1].shape[0])
-
-                if e == 0: continue
+                if idx == 0 or (idx % args.summary_interval) != 0:
+                    continue
 
                 with timer_dict['summary']:
-                    for i in range(result.shape[0]):
-                        if (idx % 100) != 0:
-                            continue
+                    for i in range(5):
+                        bbox = np.abs((res[i]/10)*226).astype(np.int)
+                        bboxGT = np.abs((cur_batch[2][i]/10)*226).astype(np.int)
+                        training_imgs_samples.append((np.copy(cur_batch[0][i]), bbox, bboxGT))
 
-                        training_ap_calc.add_detections(cur_batch[2][i],res[i])
+                #timerStats()
 
+                #-------------------------------------------------------------------
+                # Write summaries
+                #-------------------------------------------------------------------
+                training_loss.push(e+1)
 
-                        if len(training_imgs_samples) < 3:
-                            bbox = (res[i]/10)*227
-                            training_imgs_samples.append((saved_images[i], bbox))
+                summary = sess.run(merged_summary,feed_dict={tracknet.image: cur_batch[0],
+                                                         tracknet.target: cur_batch[1],
+                                                         tracknet.bbox: cur_batch[2]})
+                summary_writer.add_summary(summary , e+1)
 
+                training_imgs.push(e+1, training_imgs_samples)
+                training_imgs_samples = []
 
-            timerStats()
+                summary_writer.flush()
 
-            #-------------------------------------------------------------------
-            # Validate
-            #-------------------------------------------------------------------
-            description = '[i] Valid {:>2}/{}'.format(e+1, args.epochs)
-            for idx in tqdm(range(total=n_valid_batches), desc=description, unit='batches'):
+                #-------------------------------------------------------------------
+                # Validate
+                #-------------------------------------------------------------------
+                description = '[i] Valid {:>2}/{}'.format(e+1, args.epochs)
+                for idxTest in tqdm(range(n_valid_batches), total=n_valid_batches, desc=description, unit='batches', leave=False):
 
-                cur_batch = sess.run(dp.batch_test_queue)
+                    cur_batch = sess.run(dp.batch_test_queue)
 
-                [res, loss] = sess.run([tracknet.fc4, tracknet.loss], feed_dict={tracknet.image: cur_batch[0],
-                                                                         tracknet.target: cur_batch[1],
-                                                                         tracknet.bbox: cur_batch[2]})
+                    [loss, res] = sess.run([tracknet.loss, tracknet.fc4], feed_dict={tracknet.image: cur_batch[0],
+                                                                             tracknet.target: cur_batch[1],
+                                                                             tracknet.bbox: cur_batch[2]})
 
-                validation_loss.add(loss, cur_batch[1].shape[0])
-
-                if e == 0: continue
-
-                for i in range(res.shape[0]):
-                    validation_ap_calc.add_detections(cur_batch[2][i],res[i])
-
-                    if len(validation_imgs_samples) < 3:
-                        bbox = (res[i]/10)*227
-                        validation_imgs_samples.append((np.copy(curr_batch[1][i]), bbox))
-
-            #-------------------------------------------------------------------
-            # Write summaries
-            #-------------------------------------------------------------------
-            training_loss.push(e+1)
-            validation_loss.push(e+1)
-
-            #net_summary = sess.run(net_summary_ops)
-            summary_writer.add_summary(sess.run([lr_sum])[0], e+1)
-
-            #training_ap.push(e+1, mAP, APs)
-            #validation_ap.push(e+1, mAP, APs)
+                    validation_loss.add(loss/args.batch_size)
 
 
-            training_ap_calc.clear()
-            validation_ap_calc.clear()
+                with timer_dict['summary']:
+                    for i in range(5):
+                        bbox = np.abs((res[i]/10)*226).astype(np.int)
+                        bboxGT = np.abs((cur_batch[2][i]/10)*226).astype(np.int)
+                        #ipdb.set_trace()
+                        validation_imgs_samples.append((np.copy(cur_batch[0][i]), bbox, bboxGT))
 
-            training_imgs.push(e+1, training_imgs_samples)
-            validation_imgs.push(e+1, validation_imgs_samples)
+                #timerStats()
 
-            summary_writer.flush()
+                #-------------------------------------------------------------------
+                # Write summaries
+                #-------------------------------------------------------------------
+                validation_loss.push(e+1)
 
-            #-------------------------------------------------------------------
-            # Save a checktpoint
-            #-------------------------------------------------------------------
-            if (e+1) % args.checkpoint_interval == 0:
-                checkpoint = '{}/e{}.ckpt'.format(snaps_path, e+1)
+                #net_summary = sess.run(net_summary_ops)
+                summary = sess.run(merged_summary,feed_dict={tracknet.image: cur_batch[0],
+                                                         tracknet.target: cur_batch[1],
+                                                         tracknet.bbox: cur_batch[2]})
+                summary_writer.add_summary(summary , e+1)
+
+                #training_ap.push(e+1, mAP, APs)
+                #validation_ap.push(e+1, mAP, APs)
+
+                #training_ap_calc.clear()
+                #validation_ap_calc.clear()
+
+                validation_imgs.push(e+1, validation_imgs_samples)
+                validation_imgs_samples = []
+
+                summary_writer.flush()
+
+                #-------------------------------------------------------------------
+                # Save a checktpoint
+                #-------------------------------------------------------------------
+                checkpoint = '{}/{}_{}.ckpt'.format(snaps_path, e+1, idx)
                 saver.save(sess, checkpoint)
-                print('[i] Checkpoint saved:', checkpoint)
+                #print('[i] Checkpoint saved: ' + checkpoint)
 
+        #-------------------------------------------------------------------
+        # Save final checktpoint
+        #-------------------------------------------------------------------
+        timerStats()
         checkpoint = '{}/final.ckpt'.format(snaps_path)
         saver.save(sess, checkpoint)
-        print('[i] Checkpoint saved:', checkpoint)
+        print('[i] Checkpoint saved:' + checkpoint)
 
     return 0
 
