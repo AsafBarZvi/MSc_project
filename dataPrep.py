@@ -77,7 +77,7 @@ class DataPrep:
         target_test_tensors = tf.convert_to_tensor(test_target, dtype=tf.string)
         search_test_tensors = tf.convert_to_tensor(test_search, dtype=tf.string)
         box_test_tensors = tf.convert_to_tensor(test_box, dtype=tf.float64)
-        input_queue = tf.train.slice_input_producer([search_tensors, target_tensors, box_tensors], shuffle=True)
+        input_queue = tf.train.slice_input_producer([search_tensors, target_tensors, box_tensors], shuffle=False)
         input_test_queue = tf.train.slice_input_producer([search_test_tensors, target_test_tensors, box_test_tensors])
         self.batch_queue = next_batch(input_queue, batch_size)
         self.batch_test_queue = next_batch(input_test_queue, batch_size)

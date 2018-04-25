@@ -57,9 +57,9 @@ def main():
         last_epoch = None
         checkpoint_file = None
         for ckpt in ckpt_paths:
-            ckpt_num = os.path.basename(ckpt).split('.')[0][1:]
+            #ckpt_num = os.path.basename(ckpt).split('.')[0][1:]
             try:
-                ckpt_num = int(ckpt_num)
+                ckpt_num = 0#int(ckpt_num)
             except ValueError:
                 continue
             if last_epoch is None or last_epoch < ckpt_num:
@@ -112,8 +112,6 @@ def main():
         n_train_batches = int(math.ceil(dp.num_train/args.batch_size))
         n_valid_batches = int(math.ceil(dp.num_valid/args.batch_size))
 
-        n_valid_batches=100 #TODO - remove this line!
-
         lr_values = args.lr_values.split(';')
         try:
             lr_values = [float(x) for x in lr_values]
@@ -143,13 +141,19 @@ def main():
         sess.run(init)
         sess.run(init_local)
 
-        saver = tf.train.Saver(max_to_keep=args.max_snapshots_keep)
+        coord = tf.train.Coordinator()
+        # start the threads
+        tf.train.start_queue_runners(sess=sess, coord=coord)
+
 
         if (start_epoch != 0) or not checkpoint_file is None:
             try:
+                saver = tf.train.Saver()
                 saver.restore(sess, checkpoint_file)
             except Exception as E:
                 print E
+
+        model_saver = tf.train.Saver(max_to_keep=args.max_snapshots_keep)
 
         if (not checkpoint_file is None) and not args.continue_training:
             sess.run([tf.assign(global_step,0)])
@@ -199,9 +203,6 @@ def main():
         #-----------------------------------------------------------------------
         # Cycle through the epoch
         #-----------------------------------------------------------------------
-        coord = tf.train.Coordinator()
-        # start the threads
-        tf.train.start_queue_runners(sess=sess, coord=coord)
         print('[i] Training...')
         for e in range(start_epoch, args.epochs):
             training_imgs_samples = []
@@ -222,7 +223,7 @@ def main():
 
                 training_loss.add(loss/args.batch_size)
 
-                if idx == 0 or (idx % args.summary_interval) != 0:
+                if idx == 0 or ((idx % args.summary_interval) != 0 and (idx % args.val_interval) != 0):
                     continue
 
                 with timer_dict['summary']:
@@ -251,6 +252,9 @@ def main():
                 #-------------------------------------------------------------------
                 # Validate
                 #-------------------------------------------------------------------
+                if (idx % args.val_interval) != 0:
+                    continue
+
                 description = '[i] Valid {:>2}/{}'.format(e+1, args.epochs)
                 for idxTest in tqdm(range(n_valid_batches), total=n_valid_batches, desc=description, unit='batches', leave=False):
 
@@ -298,7 +302,7 @@ def main():
                 # Save a checktpoint
                 #-------------------------------------------------------------------
                 checkpoint = '{}/{}_{}.ckpt'.format(snaps_path, e+1, idx)
-                saver.save(sess, checkpoint)
+                model_saver.save(sess, checkpoint)
                 #print('[i] Checkpoint saved: ' + checkpoint)
 
         #-------------------------------------------------------------------
@@ -306,7 +310,7 @@ def main():
         #-------------------------------------------------------------------
         timerStats()
         checkpoint = '{}/final.ckpt'.format(snaps_path)
-        saver.save(sess, checkpoint)
+        model_saver.save(sess, checkpoint)
         print('[i] Checkpoint saved:' + checkpoint)
 
     return 0
