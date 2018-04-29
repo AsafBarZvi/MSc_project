@@ -83,8 +83,8 @@ def viewer(img):
 def goturnAugmentation(augIdx, cxPrev, cyPrev, bbx1Prev, bby1Prev, bbx2Prev, bby2Prev, frameRes, bbx1Curr, bby1Curr, bbx2Curr, bby2Curr):
     width = bbx2Prev - bbx1Prev
     height = bby2Prev - bby1Prev
-    cxCurr = bbx1Prev + (width/2)
-    cyCurr = bby1Prev + (height/2)
+    cxPrev = bbx1Prev + (width/2)
+    cyPrev = bby1Prev + (height/2)
     newWidth = -1
     newHeight = -1
     newCx = -1
@@ -93,12 +93,12 @@ def goturnAugmentation(augIdx, cxPrev, cyPrev, bbx1Prev, bby1Prev, bbx2Prev, bby
     if augIdx == 0:
         newHeight = frameRes[0]-1 if k2*height > frameRes[0]-1 else k2*height
         newWidth = frameRes[1]-1 if k2*width > frameRes[1]-1 else k2*width
-        newCx = cxCurr
-        newCy = cyCurr
-        startCropCurrY = 0 if cyCurr-newHeight/2 < 0 else cyCurr-newHeight/2
-        endCropCurrY = frameRes[0]-1 if cyCurr+newHeight/2 > frameRes[0]-1 else cyCurr+newHeight/2
-        startCropCurrX = 0 if cxCurr-newWidth/2 < 0 else cxCurr-newWidth/2
-        endCropCurrX = frameRes[1]-1 if cxCurr+newWidth/2 > frameRes[1]-1 else cxCurr+newWidth/2
+        newCx = cxPrev
+        newCy = cyPrev
+        startCropCurrY = 0 if newCy-newHeight/2 < 0 else newCy-newHeight/2
+        endCropCurrY = frameRes[0]-1 if newCy+newHeight/2 > frameRes[0]-1 else newCy+newHeight/2
+        startCropCurrX = 0 if newCx-newWidth/2 < 0 else newCx-newWidth/2
+        endCropCurrX = frameRes[1]-1 if newCx+newWidth/2 > frameRes[1]-1 else newCx+newWidth/2
         bbx1New = 0 if newCx-newWidth/2 < 0 else newCx-newWidth/2
         bby1New = 0 if newCy-newHeight/2 < 0 else newCy-newHeight/2
 
@@ -121,8 +121,8 @@ def goturnAugmentation(augIdx, cxPrev, cyPrev, bbx1Prev, bby1Prev, bbx2Prev, bby
 
         numOfTries = 10
         firstIter = True
-        while (firstIter or newCx < cxCurr-((width*k2)/2) or newCx > cxCurr+((width*k2)/2) or newCx-newWidth/2 < 0 or newCx+newWidth/2 > frameRes[1]-1) and numOfTries:
-            newCx = cxCurr + width*np.random.laplace(0, augShift)
+        while (firstIter or newCx < cxPrev-((width*k2)/2) or newCx > cxPrev+((width*k2)/2) or newCx-newWidth/2 < 0 or newCx+newWidth/2 > frameRes[1]-1) and numOfTries:
+            newCx = cxPrev + width*np.random.laplace(0, augShift)
             newCx = int(min(frameRes[1]-newWidth/2, max(newWidth/2,newCx)))
             numOfTries -= 1
             firstIter = False
@@ -131,8 +131,8 @@ def goturnAugmentation(augIdx, cxPrev, cyPrev, bbx1Prev, bby1Prev, bbx2Prev, bby
 
         numOfTries = 10
         firstIter = True
-        while (firstIter or newCy < cyCurr-((height*k2)/2) or newCy > cyCurr+((height*k2)/2) or newCy-newHeight/2 < 0 or newCy+newHeight/2 > frameRes[0]-1) and numOfTries:
-            newCy = cyCurr + height*np.random.laplace(0, augShift)
+        while (firstIter or newCy < cyPrev-((height*k2)/2) or newCy > cyPrev+((height*k2)/2) or newCy-newHeight/2 < 0 or newCy+newHeight/2 > frameRes[0]-1) and numOfTries:
+            newCy = cyPrev + height*np.random.laplace(0, augShift)
             newCy = int(min(frameRes[1]-newHeight/2, max(newHeight/2,newCy)))
             numOfTries -= 1
             firstIter = False
@@ -154,6 +154,14 @@ def goturnAugmentation(augIdx, cxPrev, cyPrev, bbx1Prev, bby1Prev, bbx2Prev, bby
     bbx2CurrCrop = 0 if bbx2Curr-bbx1New < 0 else bbx2Curr-bbx1New
     bby1CurrCrop = 0 if bby1Curr-bby1New < 0 else bby1Curr-bby1New
     bby2CurrCrop = 0 if bby2Curr-bby1New < 0 else bby2Curr-bby1New
+
+    # Check that the current frame crop contain the object
+    widthCurr = bbx2Curr - bbx1Curr
+    heightCurr = bby2Curr - bby1Curr
+    cxCurr = bbx1Curr + (widthCurr/2)
+    cyCurr = bby1Curr + (heightCurr/2)
+    if cxCurr > endCropCurrX or cxCurr < startCropCurrX or cyCurr > endCropCurrY or cyCurr < startCropCurrY:
+        return [0, 0, 0, 0, 0, 0, 0, 0, False]
 
     return [bbx1CurrCrop, bby1CurrCrop, bbx2CurrCrop, bby2CurrCrop, startCropCurrY, endCropCurrY, startCropCurrX, endCropCurrX, True]
 
