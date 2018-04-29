@@ -57,9 +57,9 @@ def main():
         last_epoch = None
         checkpoint_file = None
         for ckpt in ckpt_paths:
-            #ckpt_num = os.path.basename(ckpt).split('.')[0][1:]
+            ckpt_num = os.path.basename(ckpt).split('.')[0][1:]
             try:
-                ckpt_num = 0#int(ckpt_num)
+                ckpt_num = int(ckpt_num)
             except ValueError:
                 continue
             if last_epoch is None or last_epoch < ckpt_num:
@@ -237,14 +237,15 @@ def main():
                 #-------------------------------------------------------------------
                 # Write summaries
                 #-------------------------------------------------------------------
-                training_loss.push((e+1)*idx)
+                iteraton = int(tf.train.global_step(sess, global_step))
+                training_loss.push(iteraton)
 
                 summary = sess.run(merged_summary,feed_dict={tracknet.image: cur_batch[0],
                                                          tracknet.target: cur_batch[1],
                                                          tracknet.bbox: cur_batch[2]})
-                summary_writer.add_summary(summary , (e+1)*idx)
+                summary_writer.add_summary(summary, iteraton)
 
-                training_imgs.push((e+1)*idx, training_imgs_samples)
+                training_imgs.push(iteraton, training_imgs_samples)
                 training_imgs_samples = []
 
                 summary_writer.flush()
@@ -279,13 +280,13 @@ def main():
                 #-------------------------------------------------------------------
                 # Write summaries
                 #-------------------------------------------------------------------
-                validation_loss.push((e+1)*idx)
+                validation_loss.push(iteraton)
 
                 #net_summary = sess.run(net_summary_ops)
                 summary = sess.run(merged_summary,feed_dict={tracknet.image: cur_batch[0],
                                                          tracknet.target: cur_batch[1],
                                                          tracknet.bbox: cur_batch[2]})
-                summary_writer.add_summary(summary , (e+1)*idx)
+                summary_writer.add_summary(summary, iteraton)
 
                 #training_ap.push(e+1, mAP, APs)
                 #validation_ap.push(e+1, mAP, APs)
@@ -293,7 +294,7 @@ def main():
                 #training_ap_calc.clear()
                 #validation_ap_calc.clear()
 
-                validation_imgs.push((e+1)*idx, validation_imgs_samples)
+                validation_imgs.push(iteraton, validation_imgs_samples)
                 validation_imgs_samples = []
 
                 summary_writer.flush()
