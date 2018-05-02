@@ -1,7 +1,7 @@
 import tensorflow as tf
 import numpy as np
 class TRACKNET:
-    def __init__(self, batch_size, wd, train = True):
+    def __init__(self, batch_size, wd = 0.0005, train = True):
         self.parameters = {}
         self.batch_size = batch_size
         self.target = tf.placeholder(tf.float32, [batch_size, 227, 227, 3])

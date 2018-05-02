@@ -223,7 +223,8 @@ def main():
 
                 training_loss.add(loss/args.batch_size)
 
-                if idx == 0 or ((idx % args.summary_interval) != 0 and (idx % args.val_interval) != 0):
+                iteraton = int(tf.train.global_step(sess, global_step))
+                if iteraton == 0 or ((iteraton % args.summary_interval) != 0 and (iteraton % args.val_interval) != 0):
                     continue
 
                 with timer_dict['summary']:
@@ -253,7 +254,7 @@ def main():
                 #-------------------------------------------------------------------
                 # Validate
                 #-------------------------------------------------------------------
-                if (idx % args.val_interval) != 0:
+                if (iteraton % args.val_interval) != 0:
                     continue
 
                 description = '[i] Valid {:>2}/{}'.format(e+1, args.epochs)
