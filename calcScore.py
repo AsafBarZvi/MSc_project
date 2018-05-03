@@ -55,7 +55,7 @@ def main():
 
     # Load all VOT videos
     videos = glob.glob("./data/votTestData/*")
-    model = "./snaps/goturnTrain_trainConvBatch50Cont/final.ckpt" #sys.argv[2]
+    model = "./snaps/goturnTrain_trainConvWithoutCheckpoint/7_15000.ckpt" #sys.argv[2]
 
     robTot = 0
     iouTot = 0
@@ -112,8 +112,8 @@ def main():
                 startCropX = 0 if cx-bbPadsW < 0 else cx-bbPadsW
                 endCropX = targetFrame.shape[1]-1 if cx+bbPadsW > targetFrame.shape[1]-1 else cx+bbPadsW
 
-                targetCrop = np.copy(targetFrame[startCropY:endCropY, startCropX:endCropX])
-                searchCrop = np.copy(searchFrame[startCropY:endCropY, startCropX:endCropX])
+                targetCrop = targetFrame[startCropY:endCropY, startCropX:endCropX]
+                searchCrop = searchFrame[startCropY:endCropY, startCropX:endCropX]
 
                 # opencv reads as BGR and tensorflow gets RGB
                 target = cv2.resize(targetCrop[:,:,::-1], (227,227))
@@ -147,7 +147,7 @@ def main():
 
             # Calculate accuracy, robustness and overall error per current video
             endTimer = time.time()
-            avgFPS = round((len(framesAnn)-10)/(endTimer-startTimer), 3)
+            avgFPS = round((len(framesAnn)-1)/(endTimer-startTimer), 3)
             A = round(iouTotSingleVid/(len(framesAnn)-1), 3)
             R = round(1-(float(initCounterSingleVid)/(len(framesAnn)-1)), 3)
             iouTot += A

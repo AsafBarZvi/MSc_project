@@ -6,6 +6,7 @@ import glob
 import re
 import os
 import sys
+import time
 #import ipdb
 
 import goturn_net
@@ -79,7 +80,9 @@ def main():
         predBB = [0,0,0,0]
         initCounter = -1
         iouTot = 0
+        timerCount = 0
         for frameAnnIndx in xrange(1,len(framesAnn)):
+            startTimer = time.time()
             # Extract GT annotation or predicted annotation
             annParseTarget = [int(float(number)) for number in framesAnn[frameAnnIndx-1].split(',')]
             annParseSearch = [int(float(number)) for number in framesAnn[frameAnnIndx].split(',')]
@@ -105,8 +108,8 @@ def main():
             startCropX = 0 if cx-bbPadsW < 0 else cx-bbPadsW
             endCropX = targetFrame.shape[1]-1 if cx+bbPadsW > targetFrame.shape[1]-1 else cx+bbPadsW
 
-            targetCrop = np.copy(targetFrame[startCropY:endCropY, startCropX:endCropX])
-            searchCrop = np.copy(searchFrame[startCropY:endCropY, startCropX:endCropX])
+            targetCrop = targetFrame[startCropY:endCropY, startCropX:endCropX]
+            searchCrop = searchFrame[startCropY:endCropY, startCropX:endCropX]
 
             # opencv reads as BGR and tensorflow gets RGB
             target = cv2.resize(targetCrop[:,:,::-1], (227,227))
@@ -135,13 +138,16 @@ def main():
             iouTot += iou
 
             # View frame
-            plt.title("IoU - {}, initNum - {}".format(round(iou,2), initCounter))
+            endTimer = time.time()
+            timerCount += endTimer-startTimer
+            plt.title("FPS - {}, IoU - {}, initNum - {}".format(round(1/(endTimer-startTimer), 3), round(iou,2), initCounter))
             view(searchFrame)
 
     # Calculate accuracy, robustness and overall error
+    avgFPS = round((len(framesAnn)-1)/timerCount, 3)
     A = round(iouTot/(len(framesAnn)-1), 3)
     R = round(1-(float(initCounter)/(len(framesAnn)-1)), 3)
-    print "Average IoU error = {}\nRobustnes error = {}\nOverall error = {}".format(1-A, 1-R, 1-((A+R)/2))
+    print "Clip: {}\nFPS = {}\nAverage IoU error = {}\nRobustnes error = {}\nOverall error = {}".format(video, avgFPS, 1-A, 1-R, 1-((A+R)/2))
 
 
 if __name__ == '__main__':
