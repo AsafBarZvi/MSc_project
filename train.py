@@ -229,8 +229,8 @@ def main():
 
                 with timer_dict['summary']:
                     for i in range(5):
-                        bbox = np.abs((res[i]/10)*226).astype(np.int)
-                        bboxGT = np.abs((cur_batch[2][i]/10)*226).astype(np.int)
+                        bbox = np.abs(res[i]*226).astype(np.int)
+                        bboxGT = np.abs(cur_batch[2][i]*226).astype(np.int)
                         training_imgs_samples.append((np.copy(cur_batch[0][i]), bbox, bboxGT))
 
                 #timerStats()
@@ -238,7 +238,6 @@ def main():
                 #-------------------------------------------------------------------
                 # Write summaries
                 #-------------------------------------------------------------------
-                iteraton = int(tf.train.global_step(sess, global_step))
                 training_loss.push(iteraton)
 
                 summary = sess.run(merged_summary,feed_dict={tracknet.image: cur_batch[0],
@@ -271,8 +270,8 @@ def main():
 
                 with timer_dict['summary']:
                     for i in range(5):
-                        bbox = np.abs((res[i]/10)*226).astype(np.int)
-                        bboxGT = np.abs((cur_batch[2][i]/10)*226).astype(np.int)
+                        bbox = np.abs(res[i]*226).astype(np.int)
+                        bboxGT = np.abs(cur_batch[2][i]*226).astype(np.int)
                         #ipdb.set_trace()
                         validation_imgs_samples.append((np.copy(cur_batch[0][i]), bbox, bboxGT))
 

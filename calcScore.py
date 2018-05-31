@@ -12,7 +12,7 @@ import time
 import goturn_net
 
 
-gpu = 1
+gpu = 2
 os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
 
 def main():
@@ -55,7 +55,8 @@ def main():
 
     # Load all VOT videos
     videos = glob.glob("./data/votTestData/*")
-    model = "./snaps/goturnTrain_trainConvWithoutCheckpoint/7_15000.ckpt" #sys.argv[2]
+    #model = "./snaps/goturnTrain_trainConvHighLR/33_11487.ckpt" #sys.argv[2]
+    model = "./snaps/goturnTrain_noAugOnlyAlov/final.ckpt" #sys.argv[2]
 
     robTot = 0
     iouTot = 0

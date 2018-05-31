@@ -8,7 +8,7 @@ default_config = {
     "weight_decay"      : 0.0005,                       #decay on weights
 #    "l2_bias_decay"     : 0.000001,                    #l2 decay on biases
     "snapdir"           : "./snaps",                    #path to save snapshots
-    "epochs"            : 200,                          #number of epoches
+    "epochs"            : 300,                           #number of epoches
     "logdir"            : "logs",                       #tensorboard log dir
     "summary_interval"  : 500,                          #num of interval to dump summary
     "val_interval"      : 5000,                         #num of interval to run validation

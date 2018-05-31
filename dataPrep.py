@@ -9,7 +9,7 @@ class DataPrep:
         # Read the dataset info
         #-----------------------------------------------------------------------
         try:
-            self.ftrain = open(data_dir + '/trainSetNoAug.txt', "r")
+            self.ftrain = open(data_dir + '/trainSet.txt', "r")
             self.ftest = open(data_dir + '/testSet.txt', "r")
 
         except Exception as e:
@@ -31,7 +31,8 @@ class DataPrep:
                 line = line.split(",")
                 train_target.append(line[0])
                 train_search.append(line[1])
-                box = [10 * float(line[2]), 10 * float(line[3]), 10 * float(line[4]), 10 * float(line[5])]
+                #box = [10 * float(line[2]), 10 * float(line[3]), 10 * float(line[4]), 10 * float(line[5])]
+                box = [float(line[2]), float(line[3]), float(line[4]), float(line[5])]
                 train_box.append(box)
             fset.close()
 

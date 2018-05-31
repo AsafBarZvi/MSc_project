@@ -14,6 +14,7 @@ import goturn_net
 
 #gpu = 0
 #os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
+#out = cv2.VideoWriter('output.avi', -1, 20.0, (640,480))
 
 def main():
 
@@ -55,7 +56,7 @@ def main():
 
     # Load the video frames and annotations
     video = sys.argv[1]
-    model = "./snaps/goturnTrain_trainConvBatch50Cont/final.ckpt" #sys.argv[2]
+    model = "./snaps/goturnTrain_trainConvHighLR/33_11487.ckpt" #sys.argv[2]
     if not os.path.exists(video):
         print "No such a video!"
         exit(1)
