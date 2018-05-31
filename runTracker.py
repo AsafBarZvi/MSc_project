@@ -56,7 +56,7 @@ def main():
 
     # Load the video frames and annotations
     video = sys.argv[1]
-    model = "./snaps/goturnTrain_trainConvHighLR/33_11487.ckpt" #sys.argv[2]
+    model = sys.argv[2]#"./snaps/goturnTrain_trainConvHighLR/33_11487.ckpt"
     if not os.path.exists(video):
         print "No such a video!"
         exit(1)
