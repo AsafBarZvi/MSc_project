@@ -155,8 +155,10 @@ def draw_box(img, box, motion, color, gt=False):
     cv2.rectangle(img, (xmin,ymin), (xmax,ymax), color, 2)
 
     if not gt:
+        cv2.drawMarker(img, ((xmin+xmax)/2,(ymin+ymax)/2), color=color, markerType=cv2.MARKER_SQUARE, markerSize=2, thickness=2)
         centerPnt = (113,113)
-        cv2.arrowedLine(img, centerPnt, centerPnt+motion, (255,255,0), 2)
+        motionPnt = (113+motion[0], 113+motion[1])
+        cv2.arrowedLine(img, centerPnt, motionPnt, (255,255,0), 2)
 
 
 #-------------------------------------------------------------------------------
@@ -221,8 +223,8 @@ class ImageSummary:
             img = sample[0]
             imgGT = np.copy(img)
             imgPred = np.copy(img)
-            draw_box(imgGT, sample[1], sample[3], [255,0,0], True)
-            draw_box(imgPred, sample[2], sample[3], [0,255,0])
+            draw_box(imgPred, sample[1], sample[3], [255,0,0])
+            draw_box(imgGT, sample[2], sample[3], [0,255,0], True)
             #img[img>255] = 255
             #img[img<0] = 0
             alpha = 0.3

@@ -63,9 +63,9 @@ class TRACKNET:
     #-----------------------------------------------------------------------
     def build(self):
 
-        self.target = tf.placeholder(tf.float32, [batch_size, 227, 227, 3])
-        self.image = tf.placeholder(tf.float32, [batch_size, 227, 227, 3])
-        self.bbox_motion = tf.placeholder(tf.float32, [batch_size, 6])
+        self.target = tf.placeholder(tf.float32, [self.batch_size, 227, 227, 3])
+        self.image = tf.placeholder(tf.float32, [self.batch_size, 227, 227, 3])
+        self.bbox_motion = tf.placeholder(tf.float32, [self.batch_size, 6])
 
         ########### for target ###########
         with tf.variable_scope("net_target"):
@@ -124,7 +124,7 @@ class TRACKNET:
         with tf.variable_scope("fc_two_nets"):
 
             # now two features map, each 6 x 6 x 256
-            concat = tf.concat([self.conv_output_targrt, self.conv_output_search], axis = 3)
+            concat = tf.concat([self.conv_output_target, self.conv_output_search], axis = 3)
 
             x = tf.contrib.layers.flatten(concat)
             x = tf.layers.dense(x, 4096, name='fc1', activation=tf.nn.relu, kernel_regularizer=self.wreg , bias_regularizer=self.breg)
@@ -133,7 +133,7 @@ class TRACKNET:
             _activation_summary(x)
             x = tf.layers.dense(x, 2096, name='fc3', activation=tf.nn.relu, kernel_regularizer=self.wreg , bias_regularizer=self.breg)
             _activation_summary(x)
-            x = tf.layers.dense(x,    6, name='fc4', activation=tf.nn.relu, kernel_regularizer=self.wreg , bias_regularizer=self.breg)
+            x = tf.layers.dense(x,    6, name='fc4', activation=None, kernel_regularizer=self.wreg , bias_regularizer=self.breg)
             self.fc_output = tf.reshape(x, [self.batch_size, 6])
             _activation_summary(self.fc_output)
 
@@ -167,10 +167,10 @@ class TRACKNET:
             motionDist = tf.subtract(motionGT, motionPred)
             motionDist = tf.abs(motionDist)
             motionDist = tf.reduce_sum(motionDist, axis=1)
-            self.motionLoss = tf.reduce_mean(motionDist, name="motionLoss")
+            self.motionLoss = tf.reduce_mean(motionDist, axis=0, name="motionLoss")
             _variable_summaries(self.motionLoss)
 
-            #self.checks = {'bboxDist': bboxDist}
+            #self.checks = {'bboxDist': bboxDist, 'motionDist': motionDist}
 
 
         #-----------------------------------------------------------------------
