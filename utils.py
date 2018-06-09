@@ -149,16 +149,15 @@ def sig2xy(sig , ysample , w ,h , cx , cy):
     return (tuple((np.array(sig) * w + cx).tolist()) ,  tuple((np.array(ysample) * h + cy).tolist()))
 
 #-------------------------------------------------------------------------------
-def draw_box(img, box, color , gt=False):
-    #img_size = Size(img.shape[1], img.shape[0])
+def draw_box(img, box, motion, color, gt=False):
+
     xmin, ymin, xmax, ymax = box
-    #img_box = np.copy(img)
-    text_offset = (xmin + 5) if not gt else (xmax - 15)
     cv2.rectangle(img, (xmin,ymin), (xmax,ymax), color, 2)
-    #font = cv2.FONT_HERSHEY_SIMPLEX
-    #cv2.putText(img_box, 'search', (xmin+5, img.shape[0] -  ymin + 10), font, 0.35, (255, 255, 255), 1, cv2.LINE_AA)
-    #alpha = 0.85
-    #cv2.addWeighted(img_box, alpha, img, 1.-alpha, 0, img)
+
+    if not gt:
+        centerPnt = (113,113)
+        cv2.arrowedLine(img, centerPnt, centerPnt+motion, (255,255,0), 2)
+
 
 #-------------------------------------------------------------------------------
 class PrecisionSummary:
@@ -220,13 +219,15 @@ class ImageSummary:
         imgs = np.zeros((5, 227, 227, 3))
         for i, sample in enumerate(samples):
             img = sample[0]
-            #img = cv2.resize(sample[0], (227, 227))[::-1,:,:]
-            #if img.shape[2] == 2:
-            #    img = np.concatenate([img[:,:,0][:,:,np.newaxis] , img[:,:,1][:,:,np.newaxis] , img[:,:,1][:,:,np.newaxis]] , axis=-1)
-            draw_box(img, sample[1], [255,0,0])
-            draw_box(img, sample[2], [0,255,0])
-            img[img>255] = 255
-            img[img<0] = 0
+            imgGT = np.copy(img)
+            imgPred = np.copy(img)
+            draw_box(imgGT, sample[1], sample[3], [255,0,0], True)
+            draw_box(imgPred, sample[2], sample[3], [0,255,0])
+            #img[img>255] = 255
+            #img[img<0] = 0
+            alpha = 0.3
+            cv2.addWeighted(imgGT, alpha, imgPred, 1.-alpha, 0, img)
+
             imgs[i] = img.astype(np.uint8)
 
         feed = {self.img_placeholder: imgs}

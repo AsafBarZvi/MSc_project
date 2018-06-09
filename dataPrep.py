@@ -32,7 +32,8 @@ class DataPrep:
                 train_target.append(line[0])
                 train_search.append(line[1])
                 #box = [10 * float(line[2]), 10 * float(line[3]), 10 * float(line[4]), 10 * float(line[5])]
-                box = [float(line[2]), float(line[3]), float(line[4]), float(line[5])]
+                # Normalized 0-1 bounding box GT (xmin,ymin,xmax,ymax) + Normalized motion GT (avgX in search to center(0.5) in target, avgY in search to center(0.5) in target)
+                box = [float(line[2]), float(line[3]), float(line[4]), float(line[5]), ((float(line[2])+float(line[4]))/2.)-0.5, ((float(line[3])+float(line[5]))/2.)-0.5]
                 train_box.append(box)
             fset.close()
 
@@ -74,10 +75,10 @@ class DataPrep:
         [test_target, test_search, test_box] = load_training_set(self.ftest)
         target_tensors = tf.convert_to_tensor(train_target, dtype=tf.string)
         search_tensors = tf.convert_to_tensor(train_search, dtype=tf.string)
-        box_tensors = tf.convert_to_tensor(train_box, dtype=tf.float64)
+        box_tensors = tf.convert_to_tensor(train_box, dtype=tf.float32)
         target_test_tensors = tf.convert_to_tensor(test_target, dtype=tf.string)
         search_test_tensors = tf.convert_to_tensor(test_search, dtype=tf.string)
-        box_test_tensors = tf.convert_to_tensor(test_box, dtype=tf.float64)
+        box_test_tensors = tf.convert_to_tensor(test_box, dtype=tf.float32)
         input_queue = tf.train.slice_input_producer([search_tensors, target_tensors, box_tensors], shuffle=False)
         input_test_queue = tf.train.slice_input_producer([search_test_tensors, target_test_tensors, box_test_tensors])
         self.batch_queue = next_batch(input_queue, batch_size)

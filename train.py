@@ -14,7 +14,7 @@ import os
 from timer import timer_dict , timerStats
 from default import config , printCfg
 
-import goturn_net
+import net
 #import ipdb
 
 config.__dict__.update()
@@ -129,12 +129,11 @@ def main():
         ret = compute_lr(lr_values, lr_boundaries)
         learning_rate, global_step = ret
 
-        tracknet = goturn_net.TRACKNET(args.batch_size, args.weight_decay)
-        tracknet.build()
+        tracknet = net.TRACKNET(args.batch_size, args.weight_decay, args.bias_decay)
 
         with tf.variable_scope('train_step'):
             train_step = tf.train.AdamOptimizer(learning_rate, args.momentum).minimize( \
-                    tracknet.loss_wdecay, global_step=global_step, name='train_step')
+                    tracknet.losses['total'], global_step=global_step, name='train_step')
 
         init = tf.global_variables_initializer()
         init_local = tf.local_variables_initializer()
@@ -217,11 +216,11 @@ def main():
                 cur_batch = sess.run(dp.batch_queue)
 
                 with timer_dict['train']:
-                    [_, loss, res] = sess.run([train_step, tracknet.loss, tracknet.fc4], feed_dict={tracknet.image: cur_batch[0],
-                                                                         tracknet.target: cur_batch[1],
-                                                                         tracknet.bbox: cur_batch[2]})
+                    [_, loss, res] = sess.run([train_step, tracknet.losses, tracknet.result], feed_dict={tracknet.image: cur_batch[0],
+                                                                                                         tracknet.target: cur_batch[1],
+                                                                                                         tracknet.bbox_motion: cur_batch[2]})
 
-                training_loss.add(loss/args.batch_size)
+                training_loss.add(loss['total'])
 
                 iteraton = int(tf.train.global_step(sess, global_step))
                 if iteraton == 0 or ((iteraton % args.summary_interval) != 0 and (iteraton % args.val_interval) != 0):
@@ -229,9 +228,10 @@ def main():
 
                 with timer_dict['summary']:
                     for i in range(5):
-                        bbox = np.abs(res[i]*226).astype(np.int)
-                        bboxGT = np.abs(cur_batch[2][i]*226).astype(np.int)
-                        training_imgs_samples.append((np.copy(cur_batch[0][i]), bbox, bboxGT))
+                        bbox = np.abs(res['bbox'][i]*226).astype(np.int)
+                        bboxGT = np.abs(cur_batch[2][i,:4]*226).astype(np.int)
+                        motion = (res['motion'][i]*226).astype(np.int)
+                        training_imgs_samples.append((np.copy(cur_batch[0][i]), bbox, bboxGT, motion))
 
                 #timerStats()
 
@@ -241,8 +241,8 @@ def main():
                 training_loss.push(iteraton)
 
                 summary = sess.run(merged_summary,feed_dict={tracknet.image: cur_batch[0],
-                                                         tracknet.target: cur_batch[1],
-                                                         tracknet.bbox: cur_batch[2]})
+                                                            tracknet.target: cur_batch[1],
+                                                            tracknet.bbox_motion: cur_batch[2]})
                 summary_writer.add_summary(summary, iteraton)
 
                 training_imgs.push(iteraton, training_imgs_samples)
@@ -261,19 +261,19 @@ def main():
 
                     cur_batch = sess.run(dp.batch_test_queue)
 
-                    [loss, res] = sess.run([tracknet.loss, tracknet.fc4], feed_dict={tracknet.image: cur_batch[0],
-                                                                             tracknet.target: cur_batch[1],
-                                                                             tracknet.bbox: cur_batch[2]})
+                    [loss, res] = sess.run([tracknet.losses, tracknet.result], feed_dict={tracknet.image: cur_batch[0],
+                                                                                          tracknet.target: cur_batch[1],
+                                                                                          tracknet.bbox_motion: cur_batch[2]})
 
-                    validation_loss.add(loss/args.batch_size)
+                    validation_loss.add(loss['total'])
 
 
                 with timer_dict['summary']:
                     for i in range(5):
-                        bbox = np.abs(res[i]*226).astype(np.int)
-                        bboxGT = np.abs(cur_batch[2][i]*226).astype(np.int)
-                        #ipdb.set_trace()
-                        validation_imgs_samples.append((np.copy(cur_batch[0][i]), bbox, bboxGT))
+                        bbox = np.abs(res['bbox'][i]*226).astype(np.int)
+                        bboxGT = np.abs(cur_batch[2][i,:4]*226).astype(np.int)
+                        motion = (res['motion'][i]*226).astype(np.int)
+                        validation_imgs_samples.append((np.copy(cur_batch[0][i]), bbox, bboxGT, motion))
 
                 #timerStats()
 
@@ -284,8 +284,8 @@ def main():
 
                 #net_summary = sess.run(net_summary_ops)
                 summary = sess.run(merged_summary,feed_dict={tracknet.image: cur_batch[0],
-                                                         tracknet.target: cur_batch[1],
-                                                         tracknet.bbox: cur_batch[2]})
+                                                             tracknet.target: cur_batch[1],
+                                                             tracknet.bbox_motion: cur_batch[2]})
                 summary_writer.add_summary(summary, iteraton)
 
                 #training_ap.push(e+1, mAP, APs)
