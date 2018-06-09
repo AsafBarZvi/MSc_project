@@ -24,6 +24,4 @@ You can refer to the paper or github repo above for more details.
 - python2.7
 - tensorflow 1.0+, both cpu and gpu work fine
 
-### TIPS
-Be careful, the output of this network actually always from 0 to 10 thus I multiplied the ground-truth bounding boxes( always ranging from 0 to 1) by 10.
 
