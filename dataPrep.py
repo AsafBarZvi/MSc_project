@@ -9,7 +9,7 @@ class DataPrep:
         # Read the dataset info
         #-----------------------------------------------------------------------
         try:
-            self.ftrain = open(data_dir + '/trainSet.txt', "r")
+            self.ftrain = open(data_dir + '/trainSet1.txt', "r")
             self.ftest = open(data_dir + '/testSet.txt', "r")
 
         except Exception as e:

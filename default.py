@@ -11,12 +11,12 @@ default_config = {
     "epochs"            : 20,                           #number of epoches
     "logdir"            : "logs",                       #tensorboard log dir
     "summary_interval"  : 1000,                          #num of interval to dump summary
-    "val_interval"      : 20000,                         #num of interval to run validation
-    "lr_values"         : "0.0005;0.00005;0.000005", #lr step values
+    "val_interval"      : 15000,                         #num of interval to run validation
+    "lr_values"         : "0.000005;0.0000005;0.00000005", #lr step values
     "lr_boundaries"     : "200000;300000",              #iters to jump between lr values
     "momentum"          : 0.9,                          #momentum
     "continue_training" : False,                        #resume training from latest checkpoint
-    "checkpoint_file"   : None,                         #resume from specific ckpt file
+    "checkpoint_file"   : "snaps/goturnTrain_newArchPlusMotion_lowLR/18_2352.ckpt",                         #resume from specific ckpt file
     "max_snapshots_keep": 5,                            #max snaps to keep 0 means all
     "output_dir"        : "infer_out"                   #detections images output path
 

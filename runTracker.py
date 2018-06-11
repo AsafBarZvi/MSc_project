@@ -7,6 +7,8 @@ import re
 import os
 import sys
 import time
+import imgaug as ia
+from imgaug import augmenters as iaa
 #import ipdb
 
 import goturn_net
@@ -56,7 +58,8 @@ def main():
 
     # Load the video frames and annotations
     video = sys.argv[1]
-    model = sys.argv[2]#"./snaps/goturnTrain_trainConvHighLR/33_11487.ckpt"
+    preTrain = True
+    model = "./snaps/goturnTrain_trainConvHighLR/33_11487.ckpt" #sys.argv[2]
     if not os.path.exists(video):
         print "No such a video!"
         exit(1)
@@ -68,12 +71,14 @@ def main():
 
     with tf.Session() as sess:
         # Initiate the network
-        tracknet = goturn_net.TRACKNET(1, 0.0005, False)
+        tracknet = goturn_net.TRACKNET(1, 0.0000005, False)
         tracknet.build()
-        #init = tf.global_variables_initializer()
-        #init_local = tf.local_variables_initializer()
-        #sess.run(init)
-        #sess.run(init_local)
+        with tf.variable_scope('train_step'):
+            train_step = tf.train.AdamOptimizer(0.000005).minimize(tracknet.loss_wdecay)
+        init = tf.global_variables_initializer()
+        init_local = tf.local_variables_initializer()
+        sess.run(init)
+        sess.run(init_local)
         saver = tf.train.Saver()
         saver.restore(sess, model)
 
@@ -117,6 +122,51 @@ def main():
             search = cv2.resize(searchCrop[:,:,::-1], (227,227))
             target = np.expand_dims(target, axis=0)
             search = np.expand_dims(search, axis=0)
+
+            # Finetune the tracker net for current tracked object
+            if preTrain and frameAnnIndx == 1:
+                #fig2 = plt.figure()
+                [bbx1Search, bby1Search, bbx2Search, bby2Search] = extBBvot(annParseSearch)
+                bbox = [bbx1Search- startCropX, bby1Search- startCropY, bbx2Search- startCropX, bby2Search- startCropY]
+                bbox = np.array(bbox, dtype=np.float32)
+                bbox[0] /= targetCrop.shape[1]
+                bbox[1] /= targetCrop.shape[0]
+                bbox[2] /= targetCrop.shape[1]
+                bbox[3] /= targetCrop.shape[0]
+                bbox = (bbox*227).astype(int)
+                ia.seed(1)
+                imgShape = ia.quokka(size=(227, 227))
+                bbs = ia.BoundingBoxesOnImage([ia.BoundingBox(x1=bbox[0], y1=bbox[1], x2=bbox[2], y2=bbox[3])], shape=imgShape.shape)
+                for fineTuneIter in range(50):
+                    targetForAug = np.copy(target[0,:,:,:])
+                    searchForAug = np.copy(search[0,:,:,:])
+                    scale = iaa.Affine(scale={"x": (1.0, 1.3), "y": (1.0, 1.3)})# Scale image and bounding box by 100% to 130%
+                    scale.to_deterministic()
+                    searchForAug = scale.augment_image(searchForAug)
+                    bbsScale = scale.augment_bounding_boxes([bbs])[0]
+                    bboxAug = bbsScale.bounding_boxes[0]
+                    bboxAug = np.array([bboxAug.x1, bboxAug.y1, bboxAug.x2, bboxAug.y2], dtype=int)
+                    bboxAug[bboxAug<0] = 0
+                    bboxAug[bboxAug>226] = 226
+                    bboxAugNorm = bboxAug.astype(np.float32)/226
+
+                    blurer = iaa.GaussianBlur((0,2.))# blur image by a sigma between 0 of 2
+                    searchForAug = blurer.augment_image(searchForAug)
+                    targetForAug = blurer.augment_image(targetForAug)
+
+                    [_] = sess.run([train_step], feed_dict={tracknet.image: searchForAug[np.newaxis,:,:,:], tracknet.target: targetForAug[np.newaxis,:,:,:], tracknet.bbox: bboxAugNorm[np.newaxis,:]})
+
+                    #searchForAugShow = np.copy(searchForAug)
+                    #cv2.rectangle(searchForAugShow, tuple(bboxAug[:2]), tuple(bboxAug[2:]), (255,255,0), 3)
+                    #plt.subplot(2,1,1)
+                    #plt.imshow(targetForAug)
+                    #plt.subplot(2,1,2)
+                    #plt.imshow(searchForAugShow)
+                    #fig2.show()
+                    #plt.pause(1)
+                    #plt.clf()
+                #plt.close(fig2)
+
 
             # Infer
             [res] = sess.run([tracknet.fc4], feed_dict={tracknet.image: search, tracknet.target: target})

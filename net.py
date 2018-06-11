@@ -93,7 +93,7 @@ class TRACKNET:
             self.conv_output_target = tf.layers.conv2d(x ,256 , 3 , 1 , name='conv11_target' , reuse=False, activation=tf.nn.relu , padding='same' , kernel_regularizer=self.wreg , bias_regularizer=self.breg)
             _activation_summary(self.conv_output_target)
 
-        ########### for target ###########
+        ########### for search ###########
         with tf.variable_scope("net_search"):
 
             x = tf.layers.conv2d(self.image ,  8 , 3 , 2 , name='conv1_search' , reuse=False, activation=tf.nn.relu , padding='same' , kernel_regularizer=self.wreg , bias_regularizer=self.breg)
