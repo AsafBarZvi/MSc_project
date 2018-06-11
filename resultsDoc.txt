@@ -1,0 +1,28 @@
+## Reproducing paper results + improvment due to fintune the conv layers as well
+## Robustnes IoU threshold - 0.3
+VOT results summary:
+Average IoU error = 0.396
+Robustnes error = 0.043
+Overall error = 0.2195
+
+## Reproducing paper results + improvment due to fintune the conv layers as well
+## Robustnes IoU threshold - 0.5
+VOT results summary:
+Average IoU error = 0.328
+Robustnes error = 0.104
+Overall error = 0.216
+
+## Results without GOTURN special augmentation 
+## Robustnes IoU threshold - 0.3
+VOT results summary:
+Average IoU error = 0.434
+Robustnes error = 0.052
+Overall error = 0.243
+
+## Results without GOTURN special augmentation 
+## Robustnes IoU threshold - 0.5
+VOT results summary:
+Average IoU error = 0.36
+Robustnes error = 0.136
+Overall error = 0.248
+
