@@ -33,7 +33,7 @@ class DataPrep:
                 train_search.append(line[1])
                 #box = [10 * float(line[2]), 10 * float(line[3]), 10 * float(line[4]), 10 * float(line[5])]
                 # Normalized 0-1 bounding box GT (xmin,ymin,xmax,ymax) + Normalized motion GT (avgX in search to center(0.5) in target, avgY in search to center(0.5) in target)
-                box = [float(line[2]), float(line[3]), float(line[4]), float(line[5]), ((float(line[2])+float(line[4]))/2.)-0.5, ((float(line[3])+float(line[5]))/2.)-0.5]
+                box = [float(line[2]), float(line[3]), float(line[4]), float(line[5])]#, ((float(line[2])+float(line[4]))/2.)-0.5, ((float(line[3])+float(line[5]))/2.)-0.5]
                 train_box.append(box)
             fset.close()
 

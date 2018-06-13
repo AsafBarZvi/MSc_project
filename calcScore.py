@@ -11,10 +11,10 @@ import imgaug as ia
 from imgaug import augmenters as iaa
 #import ipdb
 
-import net_lessCapacity as net
+import net as net
 
 
-gpu = 0
+gpu = 3
 os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
 
 def main():
@@ -57,8 +57,8 @@ def main():
 
     # Load all VOT videos
     videos = glob.glob("./data/votTestData/*")
-    preTrain = True
-    model = "./snaps/goturnTrain_newArchPlusMotion_lessCapacity/18_17335.ckpt" #sys.argv[2]
+    preTrain = False
+    model = sys.argv[1]
     #model = "./snaps/goturnTrain_noAugOnlyAlov/final.ckpt" #sys.argv[2]
 
     robTot = 0
@@ -88,8 +88,6 @@ def main():
             frames = glob.glob(video + "/*.jpg")
             frames.sort()
 
-            motionX = 0
-            motionY = 0
             initCounterSingleVid = -1
             iouTotSingleVid = 0
             startTimer = time.time()
@@ -120,15 +118,6 @@ def main():
                 endCropX = targetFrame.shape[1]-1 if cx+bbPadsW > targetFrame.shape[1]-1 else cx+bbPadsW
 
                 targetCrop = targetFrame[startCropY:endCropY, startCropX:endCropX]
-
-                cx = bbx1 + ((bbx2 - bbx1)/2) + motionX/2
-                cy = bby1 + ((bby2 - bby1)/2) + motionY/2
-
-                startCropY = 0 if cy-bbPadsH < 0 else cy-bbPadsH
-                endCropY = searchFrame.shape[0]-1 if cy+bbPadsH > searchFrame.shape[0]-1 else cy+bbPadsH
-                startCropX = 0 if cx-bbPadsW < 0 else cx-bbPadsW
-                endCropX = searchFrame.shape[1]-1 if cx+bbPadsW > searchFrame.shape[1]-1 else cx+bbPadsW
-
                 searchCrop = searchFrame[startCropY:endCropY, startCropX:endCropX]
 
                 # opencv reads as BGR and tensorflow gets RGB
@@ -166,13 +155,12 @@ def main():
                         bboxAug[bboxAug<0] = 0
                         bboxAug[bboxAug>226] = 226
                         bboxAugNorm = bboxAug.astype(np.float32)/226
-                        bboxAugNorm = np.concatenate((bboxAugNorm, np.array([0.,0.], dtype=np.float32)))
 
                         blurer = iaa.GaussianBlur((0,0.5))# blur image by a sigma between 0 of 0.5
                         searchForAug = blurer.augment_image(searchForAug)
                         targetForAug = blurer.augment_image(targetForAug)
 
-                        [_] = sess.run([train_step], feed_dict={tracknet.image: searchForAug[np.newaxis,:,:,:], tracknet.target: targetForAug[np.newaxis,:,:,:], tracknet.bbox_motion: bboxAugNorm[np.newaxis,:]})
+                        [_] = sess.run([train_step], feed_dict={tracknet.image: searchForAug[np.newaxis,:,:,:], tracknet.target: targetForAug[np.newaxis,:,:,:], tracknet.bbox: bboxAugNorm[np.newaxis,:]})
 
                         #searchForAugShow = np.copy(searchForAug)
                         #cv2.rectangle(searchForAugShow, tuple(bboxAug[:2]), tuple(bboxAug[2:]), (255,255,0), 3)
@@ -190,9 +178,6 @@ def main():
 
                 # Convert resulted BB to image cords
                 resBBox = res['bbox'][0]
-                resMot = res['motion'][0]
-                motionX = int(resMot[0]*searchCrop.shape[1])
-                motionY = int(resMot[1]*searchCrop.shape[0])
                 bbx1Pred = int(resBBox[0]*searchCrop.shape[1]) + startCropX
                 bby1Pred = int(resBBox[1]*searchCrop.shape[0]) + startCropY
                 bbx2Pred = int(resBBox[2]*searchCrop.shape[1]) + startCropX

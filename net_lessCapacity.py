@@ -65,7 +65,7 @@ class TRACKNET:
 
         self.target = tf.placeholder(tf.float32, [self.batch_size, 227, 227, 3])
         self.image = tf.placeholder(tf.float32, [self.batch_size, 227, 227, 3])
-        self.bbox_motion = tf.placeholder(tf.float32, [self.batch_size, 6])
+        self.bbox = tf.placeholder(tf.float32, [self.batch_size, 4])
 
         ########### for target ###########
         with tf.variable_scope("net_target"):
@@ -127,7 +127,7 @@ class TRACKNET:
             _activation_summary(x)
             x = tf.layers.dense(x, 1024, name='fc2', activation=tf.nn.relu, kernel_regularizer=self.wreg , bias_regularizer=self.breg)
             _activation_summary(x)
-            self.fc_output = tf.layers.dense(x,    6, name='fc3', activation=None, kernel_regularizer=self.wreg , bias_regularizer=self.breg)
+            self.fc_output = tf.layers.dense(x,    4, name='fc3', activation=None, kernel_regularizer=self.wreg , bias_regularizer=self.breg)
             #self.fc_output = tf.reshape(x, [self.batch_size, 6])
             _activation_summary(self.fc_output)
 
@@ -135,8 +135,7 @@ class TRACKNET:
         with tf.variable_scope("result"):
 
             self.result = {
-                    'bbox': self.fc_output[:,:4],
-                    'motion': self.fc_output[:,4:],
+                    'bbox': self.fc_output
             }
 
 
@@ -145,10 +144,8 @@ class TRACKNET:
         #-----------------------------------------------------------------------
         with tf.variable_scope("loss"):
 
-            bboxGT = self.bbox_motion[:,:4]
-            motionGT = self.bbox_motion[:,4:]
-            bboxPred = self.fc_output[:,:4]
-            motionPred = self.fc_output[:,4:]
+            bboxGT = self.bbox
+            bboxPred = self.fc_output
 
             ## Calculate bounding box loss
             bboxDist = tf.subtract(bboxGT, bboxPred)
@@ -157,13 +154,6 @@ class TRACKNET:
             self.bboxLoss = tf.reduce_mean(bboxDist, name="bboxLoss")
             _variable_summaries(self.bboxLoss)
 
-            ## Calculate bounding box loss
-            motionDist = tf.subtract(motionGT, motionPred)
-            motionDist = tf.abs(motionDist)
-            motionDist = tf.reduce_sum(motionDist, axis=1)
-            self.motionLoss = tf.reduce_mean(motionDist, axis=0, name="motionLoss")
-            _variable_summaries(self.motionLoss)
-
             #self.checks = {'bboxDist': bboxDist, 'motionDist': motionDist}
 
 
@@ -171,15 +161,13 @@ class TRACKNET:
         # Compute total loss
         #-----------------------------------------------------------------------
         with tf.variable_scope('total_loss'):
-            self.loss = tf.add(self.bboxLoss, self.motionLoss*2, name='loss')
+            self.loss = self.bboxLoss
 
 
         #-----------------------------------------------------------------------
         # Store the tensors
         #-----------------------------------------------------------------------
         self.losses = {
-            'total': self.loss,
-            'bboxLoss': self.bboxLoss,
-            'motionLoss': self.motionLoss
+            'total': self.loss
         }
 

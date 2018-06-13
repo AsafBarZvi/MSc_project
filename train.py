@@ -14,7 +14,7 @@ import os
 from timer import timer_dict , timerStats
 from default import config , printCfg
 
-import net
+import net as net
 #import ipdb
 
 config.__dict__.update()
@@ -42,29 +42,9 @@ def main():
     # Find an existing checkpoint
     #---------------------------------------------------------------------------
     start_epoch = 0
+    start_idx = 0
     checkpoint_file = args.checkpoint_file
     if args.continue_training:
-        state = tf.train.get_checkpoint_state(snaps_path)
-        if state is None:
-            print('[!] No network state found in ' + snaps_path)
-            return 1
-
-        ckpt_paths = state.all_model_checkpoint_paths
-        if not ckpt_paths:
-            print('[!] No network state found in ' + snaps_path)
-            return 1
-
-        last_epoch = None
-        checkpoint_file = None
-        for ckpt in ckpt_paths:
-            ckpt_num = os.path.basename(ckpt).split('.')[0][1:]
-            try:
-                ckpt_num = int(ckpt_num)
-            except ValueError:
-                continue
-            if last_epoch is None or last_epoch < ckpt_num:
-                last_epoch = ckpt_num
-                checkpoint_file = ckpt
 
         if checkpoint_file is None:
             print('[!] No checkpoints found, cannot continue!')
@@ -75,7 +55,10 @@ def main():
         if not os.path.exists(metagraph_file):
             print('[!] Cannot find metagraph'.format(metagraph_file))
             return 1
-        start_epoch = last_epoch
+
+        step = os.path.basename(checkpoint_file).split('.')[0]
+        start_epoch = int(step.split('_')[0])
+        start_idx = int(step.split('_')[1]) + 1
 
     #---------------------------------------------------------------------------
     # Create a project directory
@@ -133,7 +116,7 @@ def main():
 
         with tf.variable_scope('train_step'):
             train_step = tf.train.AdamOptimizer(learning_rate, args.momentum).minimize( \
-                    tracknet.losses['total'], global_step=global_step, name='train_step')
+                    tracknet.loss, global_step=global_step, name='train_step')
 
         init = tf.global_variables_initializer()
         init_local = tf.local_variables_initializer()
@@ -211,16 +194,16 @@ def main():
             # Train
             #-------------------------------------------------------------------
             description = '[i] Train {:>2}/{}'.format(e+1, args.epochs)
-            for idx in tqdm(range(n_train_batches), total=n_train_batches, desc=description, unit='batches', leave=False):
+            for idx in tqdm(range(start_idx,n_train_batches), total=n_train_batches, initial=start_idx, desc=description, unit='batches', leave=False):
 
                 cur_batch = sess.run(dp.batch_queue)
 
                 with timer_dict['train']:
-                    [_, loss, res] = sess.run([train_step, tracknet.losses, tracknet.result], feed_dict={tracknet.image: cur_batch[0],
-                                                                                                         tracknet.target: cur_batch[1],
-                                                                                                         tracknet.bbox_motion: cur_batch[2]})
+                    [_, loss, res] = sess.run([train_step, tracknet.loss, tracknet.result], feed_dict={tracknet.image: cur_batch[0],
+                                                                                                       tracknet.target: cur_batch[1],
+                                                                                                       tracknet.bbox: cur_batch[2]})
 
-                training_loss.add(loss['total'])
+                training_loss.add(loss)
 
                 iteraton = int(tf.train.global_step(sess, global_step))
                 if iteraton == 0 or ((iteraton % args.summary_interval) != 0 and (iteraton % args.val_interval) != 0):
@@ -230,8 +213,7 @@ def main():
                     for i in range(5):
                         bbox = np.abs(res['bbox'][i]*226).astype(np.int)
                         bboxGT = np.abs(cur_batch[2][i,:4]*226).astype(np.int)
-                        motion = (res['motion'][i]*226).astype(np.int)
-                        training_imgs_samples.append((np.copy(cur_batch[0][i]), bbox, bboxGT, motion))
+                        training_imgs_samples.append((np.copy(cur_batch[0][i]), bbox, bboxGT, np.array([0,0])))
 
                 #timerStats()
 
@@ -242,7 +224,7 @@ def main():
 
                 summary = sess.run(merged_summary,feed_dict={tracknet.image: cur_batch[0],
                                                             tracknet.target: cur_batch[1],
-                                                            tracknet.bbox_motion: cur_batch[2]})
+                                                            tracknet.bbox: cur_batch[2]})
                 summary_writer.add_summary(summary, iteraton)
 
                 training_imgs.push(iteraton, training_imgs_samples)
@@ -261,19 +243,18 @@ def main():
 
                     cur_batch = sess.run(dp.batch_test_queue)
 
-                    [loss, res] = sess.run([tracknet.losses, tracknet.result], feed_dict={tracknet.image: cur_batch[0],
-                                                                                          tracknet.target: cur_batch[1],
-                                                                                          tracknet.bbox_motion: cur_batch[2]})
+                    [loss, res] = sess.run([tracknet.loss, tracknet.result], feed_dict={tracknet.image: cur_batch[0],
+                                                                                        tracknet.target: cur_batch[1],
+                                                                                        tracknet.bbox: cur_batch[2]})
 
-                    validation_loss.add(loss['total'])
+                    validation_loss.add(loss)
 
 
                 with timer_dict['summary']:
                     for i in range(5):
                         bbox = np.abs(res['bbox'][i]*226).astype(np.int)
                         bboxGT = np.abs(cur_batch[2][i,:4]*226).astype(np.int)
-                        motion = (res['motion'][i]*226).astype(np.int)
-                        validation_imgs_samples.append((np.copy(cur_batch[0][i]), bbox, bboxGT, motion))
+                        validation_imgs_samples.append((np.copy(cur_batch[0][i]), bbox, bboxGT, np.array([0,0])))
 
                 #timerStats()
 
@@ -285,7 +266,7 @@ def main():
                 #net_summary = sess.run(net_summary_ops)
                 summary = sess.run(merged_summary,feed_dict={tracknet.image: cur_batch[0],
                                                              tracknet.target: cur_batch[1],
-                                                             tracknet.bbox_motion: cur_batch[2]})
+                                                             tracknet.bbox: cur_batch[2]})
                 summary_writer.add_summary(summary, iteraton)
 
                 #training_ap.push(e+1, mAP, APs)
@@ -305,6 +286,8 @@ def main():
                 checkpoint = '{}/{}_{}.ckpt'.format(snaps_path, e+1, idx)
                 model_saver.save(sess, checkpoint)
                 #print('[i] Checkpoint saved: ' + checkpoint)
+
+            start_idx = 0
 
         #-------------------------------------------------------------------
         # Save final checktpoint
