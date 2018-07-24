@@ -57,7 +57,7 @@ def main():
             return 1
 
         step = os.path.basename(checkpoint_file).split('.')[0]
-        start_epoch = int(step.split('_')[0])
+        start_epoch = int(step.split('_')[0]) - 1
         start_idx = int(step.split('_')[1]) + 1
 
     #---------------------------------------------------------------------------

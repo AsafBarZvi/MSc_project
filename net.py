@@ -160,10 +160,9 @@ class TRACKNET:
             _variable_summaries(self.bboxLoss)
 
             #self.regLoss = tf.add_n(tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES), name='regLoss')
-            #_variable_summaries(self.regLossT)
-            self.regLoss = tf.losses.get_regularization_loss()
-            _variable_summaries(self.regLoss)
-            self.loss = self.bboxLoss + self.regLoss
+            #self.regLoss = tf.losses.get_regularization_loss()
+            #_variable_summaries(self.regLoss)
+            self.loss = self.bboxLoss
 
             #self.checks = {'bboxDist': bboxDist, 'motionDist': motionDist}
 

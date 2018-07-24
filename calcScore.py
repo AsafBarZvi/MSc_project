@@ -14,7 +14,7 @@ from imgaug import augmenters as iaa
 import net as net
 
 
-gpu = 3
+gpu = 2
 os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
 
 def main():
@@ -57,7 +57,7 @@ def main():
 
     # Load all VOT videos
     videos = glob.glob("./data/votTestData/*")
-    preTrain = False
+    preTrain = True
     model = sys.argv[1]
     #model = "./snaps/goturnTrain_noAugOnlyAlov/final.ckpt" #sys.argv[2]
 
@@ -68,7 +68,7 @@ def main():
         # Initiate the network
         tracknet = net.TRACKNET(1)
         with tf.variable_scope('train_step'):
-            train_step = tf.train.AdamOptimizer(0.0000005).minimize(tracknet.losses['total'])
+            train_step = tf.train.AdamOptimizer(0.0000005).minimize(tracknet.loss)
         init = tf.global_variables_initializer()
         init_local = tf.local_variables_initializer()
         sess.run(init)
@@ -96,7 +96,7 @@ def main():
                 annParseTarget = [int(float(number)) for number in framesAnn[frameAnnIndx-1].split(',')]
                 annParseSearch = [int(float(number)) for number in framesAnn[frameAnnIndx].split(',')]
 
-                if frameAnnIndx == 1 or iou < 0.3:
+                if frameAnnIndx == 1 or iou < 0.5:
                     initCounterSingleVid += 1
                     [bbx1, bby1, bbx2, bby2] = extBBvot(annParseTarget)
                 else:

@@ -15,8 +15,8 @@ default_config = {
     "lr_values"         : "0.00005;0.000005;0.0000005", #lr step values
     "lr_boundaries"     : "150000;300000",              #iters to jump between lr values
     "momentum"          : 0.9,                          #momentum
-    "continue_training" : True,                        #resume training from latest checkpoint
-    "checkpoint_file"   : './snaps/goturnTrain_newArch_withRegLoss/2_11607.ckpt',                         #resume from specific ckpt file
+    "continue_training" : False,                        #resume training from latest checkpoint
+    "checkpoint_file"   : None,                         #resume from specific ckpt file
     "max_snapshots_keep": 15,                           #max snaps to keep 0 means all
     "output_dir"        : "infer_out"                   #detections images output path
 
