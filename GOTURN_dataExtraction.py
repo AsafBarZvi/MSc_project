@@ -15,7 +15,8 @@ augShift = 1./5
 augScale = 1./15
 minScale = 0.6
 maxScale = 1.4
-k1 = k2 = 4
+k1 = 2
+k2 = 4
 k3 = 10
 
 alovData = "./data/alovData"
