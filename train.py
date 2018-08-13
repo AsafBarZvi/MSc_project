@@ -19,8 +19,20 @@ import net as net
 
 config.__dict__.update()
 config.name = sys.argv[1]
-os.environ['CUDA_VISIBLE_DEVICES'] = str(config.gpu)
+availableGPU = config.gpu
+if availableGPU == None:
+    for gpuId in range(4):
+        if int(os.popen("nvidia-smi -i {} -q --display=MEMORY | grep -m 1 Free | grep -o '[0-9]*'".format(gpuId)).readlines()[0]) < 1000:
+            continue
+        availableGPU = gpuId
+        break
+if availableGPU == None:
+    print "No available GPU device!"
+    sys.exit(1)
+
+os.environ['CUDA_VISIBLE_DEVICES'] = str(availableGPU)
 print "{} \n {}".format(sys.argv[1],printCfg())
+print('[i] Runing on GPU: {}'.format(availableGPU))
 
 
 #-------------------------------------------------------------------------------
@@ -199,10 +211,10 @@ def main():
                 cur_batch = sess.run(dp.batch_queue)
 
                 with timer_dict['train']:
-                    [_, loss, res] = sess.run([train_step, tracknet.loss, tracknet.result], feed_dict={tracknet.search: cur_batch[0],
+                    [_, loss, res] = sess.run([train_step, tracknet.loss, tracknet.result], feed_dict={tracknet.target: cur_batch[0],
                                                                                                        tracknet.mid2: cur_batch[1],
                                                                                                        tracknet.mid1: cur_batch[2],
-                                                                                                       tracknet.target: cur_batch[3],
+                                                                                                       tracknet.search: cur_batch[3],
                                                                                                        tracknet.bbox: cur_batch[4]})
 
                 training_loss.add(loss)
@@ -224,10 +236,10 @@ def main():
                 #-------------------------------------------------------------------
                 training_loss.push(iteraton)
 
-                summary = sess.run(merged_summary,feed_dict={tracknet.search: cur_batch[0],
+                summary = sess.run(merged_summary,feed_dict={tracknet.target: cur_batch[0],
                                                              tracknet.mid2: cur_batch[1],
                                                              tracknet.mid1: cur_batch[2],
-                                                             tracknet.target: cur_batch[3],
+                                                             tracknet.search: cur_batch[3],
                                                              tracknet.bbox: cur_batch[4]})
 
                 summary_writer.add_summary(summary, iteraton)
@@ -248,10 +260,10 @@ def main():
 
                     cur_batch = sess.run(dp.batch_test_queue)
 
-                    [loss, res] = sess.run([tracknet.loss, tracknet.result], feed_dict={tracknet.search: cur_batch[0],
+                    [loss, res] = sess.run([tracknet.loss, tracknet.result], feed_dict={tracknet.target: cur_batch[0],
                                                                                         tracknet.mid2: cur_batch[1],
                                                                                         tracknet.mid1: cur_batch[2],
-                                                                                        tracknet.target: cur_batch[3],
+                                                                                        tracknet.search: cur_batch[3],
                                                                                         tracknet.bbox: cur_batch[4]})
 
                     validation_loss.add(loss)
@@ -271,10 +283,10 @@ def main():
                 validation_loss.push(iteraton)
 
                 #net_summary = sess.run(net_summary_ops)
-                summary = sess.run(merged_summary,feed_dict={tracknet.search: cur_batch[0],
+                summary = sess.run(merged_summary,feed_dict={tracknet.target: cur_batch[0],
                                                              tracknet.mid2: cur_batch[1],
                                                              tracknet.mid1: cur_batch[2],
-                                                             tracknet.target: cur_batch[3],
+                                                             tracknet.search: cur_batch[3],
                                                              tracknet.bbox: cur_batch[4]})
 
                 summary_writer.add_summary(summary, iteraton)

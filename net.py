@@ -247,15 +247,43 @@ class TRACKNET:
         with tf.variable_scope("loss"):
 
             targetPM = self.targetF
-            targetPM = targetPM[targetPM.shape[0]*1/4:targetPM.shape[0]*3/4, targetPM.shape[1]*1/4:targetPM.shape[1]*3/4, :]
-            mid1PM = self.mid1F
-            mid1PM = mid1PM[mid1PM.shape[0]*self.fc_output_mid1[1]:mid1PM.shape[0]*self.fc_output_mid1[3], mid1PM.shape[1]*self.fc_output_mid1[0]:mid1PM.shape[1]*self.fc_output_mid1[2], :]
-            mid2PM = self.mid2F
-            mid2PM = mid2PM[mid2PM.shape[0]*self.fc_output_mid2[1]:mid2PM.shape[0]*self.fc_output_mid2[3], mid2PM.shape[1]*self.fc_output_mid2[0]:mid2PM.shape[1]*self.fc_output_mid2[2], :]
+            targetPM = targetPM[:, targetPM.shape[1]*1/4:targetPM.shape[1]*3/4, targetPM.shape[2]*1/4:targetPM.shape[2]*3/4, :]
+            mid1F = self.mid1F
+            mid1PM = mid1F[0,tf.cast(int(mid1F.shape[1])*self.fc_output_mid1[0,1], tf.int32):tf.cast(int(mid1F.shape[1])*self.fc_output_mid1[0,3], tf.int32),
+                    tf.cast(int(mid1F.shape[2])*self.fc_output_mid1[0,0], tf.int32):tf.cast(int(mid1F.shape[2])*self.fc_output_mid1[0,2], tf.int32), :]
+            mid1PM = tf.image.resize_images(mid1PM, [int(targetPM.shape[1]),int(targetPM.shape[2])])
+            mid1PM = tf.expand_dims(mid1PM, 0)
+            for i in range(1, self.batch_size):
+                mid1F_cropNscale = mid1F[i,tf.cast(int(mid1F.shape[1])*self.fc_output_mid1[i,1], tf.int32):tf.cast(int(mid1F.shape[1])*self.fc_output_mid1[i,3], tf.int32),
+                        tf.cast(int(mid1F.shape[2])*self.fc_output_mid1[i,0], tf.int32):tf.cast(int(mid1F.shape[2])*self.fc_output_mid1[i,2], tf.int32), :]
+                mid1F_cropNscale = tf.image.resize_images(mid1F_cropNscale, [int(targetPM.shape[1]),int(targetPM.shape[2])])
+                mid1F_cropNscale = tf.expand_dims(mid1F_cropNscale, 0)
+                mid1PM = tf.concat([mid1PM,mid1F_cropNscale], axis=0)
+            mid2F = self.mid2F
+            mid2PM = mid2F[0,tf.cast(int(mid2F.shape[1])*self.fc_output_mid2[0,1], tf.int32):tf.cast(int(mid2F.shape[1])*self.fc_output_mid2[0,3], tf.int32),
+                    tf.cast(int(mid2F.shape[2])*self.fc_output_mid2[0,0], tf.int32):tf.cast(int(mid2F.shape[2])*self.fc_output_mid2[0,2], tf.int32), :]
+            mid2PM = tf.image.resize_images(mid2PM, [int(targetPM.shape[1]),int(targetPM.shape[2])])
+            mid2PM = tf.expand_dims(mid2PM, 0)
+            for i in range(1, self.batch_size):
+                mid2F_cropNscale = mid2F[i,tf.cast(int(mid2F.shape[1])*self.fc_output_mid2[i,1], tf.int32):tf.cast(int(mid2F.shape[1])*self.fc_output_mid2[i,3], tf.int32),
+                        tf.cast(int(mid2F.shape[2])*self.fc_output_mid2[i,0], tf.int32):tf.cast(int(mid2F.shape[2])*self.fc_output_mid2[i,2], tf.int32), :]
+                mid2F_cropNscale = tf.image.resize_images(mid2F_cropNscale, [int(targetPM.shape[1]),int(targetPM.shape[2])])
+                mid2F_cropNscale = tf.expand_dims(mid2F_cropNscale, 0)
+                mid2PM = tf.concat([mid2PM,mid2F_cropNscale], axis=0)
+            searchF = self.searchF
+            searchPM = searchF[0,tf.cast(int(searchF.shape[1])*self.fc_output_search[0,1], tf.int32):tf.cast(int(searchF.shape[1])*self.fc_output_search[0,3], tf.int32),
+                    tf.cast(int(searchF.shape[2])*self.fc_output_search[0,0], tf.int32):tf.cast(int(searchF.shape[2])*self.fc_output_search[0,2], tf.int32), :]
+            searchPM = tf.image.resize_images(searchPM, [int(targetPM.shape[1]),int(targetPM.shape[2])])
+            searchPM = tf.expand_dims(searchPM, 0)
+            for i in range(1, self.batch_size):
+                searchF_cropNscale = searchF[i,tf.cast(int(searchF.shape[1])*self.fc_output_search[i,1], tf.int32):tf.cast(int(searchF.shape[1])*self.fc_output_search[i,3], tf.int32),
+                        tf.cast(int(searchF.shape[2])*self.fc_output_search[i,0], tf.int32):tf.cast(int(searchF.shape[2])*self.fc_output_search[i,2], tf.int32), :]
+                searchF_cropNscale = tf.image.resize_images(searchF_cropNscale, [int(targetPM.shape[1]),int(targetPM.shape[2])])
+                searchF_cropNscale = tf.expand_dims(searchF_cropNscale, 0)
+                searchPM = tf.concat([searchPM,searchF_cropNscale], axis=0)
             bboxGT = self.bbox
             bboxPredSearch = self.fc_output_search
-            searchPM = self.searchF
-            searchPM = searchPM[searchPM.shape[0]*bboxPredSearch[1]:searchPM.shape[0]*bboxPredSearch[3], searchPM.shape[1]*bboxPredSearch[0]:searchPM.shape[1]*bboxPredSearch[2], :]
+
 
             ## Calculate photometric losses
             self.pmLossTargetMid1 = tf.reduce_sum(tf.square(targetPM-mid1PM))
