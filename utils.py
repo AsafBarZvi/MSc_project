@@ -126,39 +126,10 @@ def box_is_valid(box):
     return True
 
 #-------------------------------------------------------------------------------
-def normalize_box(box):
-    if not box_is_valid(box):
-        return box
-
-    img_size = Size(1000, 1000)
-    xmin, xmax, ymin, ymax = prop2abs(box.center, box.size, img_size)
-    xmin = max(xmin, 0)
-    xmax = min(xmax, img_size.w-1)
-    ymin = max(ymin, 0)
-    ymax = min(ymax, img_size.h-1)
-
-    # this happens early in the training when box min and max are outside
-    # of the image
-    xmin = min(xmin, xmax)
-    ymin = min(ymin, ymax)
-
-    center, size = abs2prop(xmin, xmax, ymin, ymax, img_size)
-    return Box(box.label, box.labelid, center, size , box.sig , box.att , box.is_diff)
-#-------------------------------------------------------------------------------
-def sig2xy(sig , ysample , w ,h , cx , cy):
-    return (tuple((np.array(sig) * w + cx).tolist()) ,  tuple((np.array(ysample) * h + cy).tolist()))
-
-#-------------------------------------------------------------------------------
-def draw_box(img, box, motion, color, gt=False):
+def draw_box(img, box, color):
 
     xmin, ymin, xmax, ymax = box
     cv2.rectangle(img, (xmin,ymin), (xmax,ymax), color, 2)
-
-    if not gt:
-        cv2.drawMarker(img, ((xmin+xmax)/2,(ymin+ymax)/2), color=color, markerType=cv2.MARKER_SQUARE, markerSize=2, thickness=2)
-        centerPnt = (113,113)
-        motionPnt = (113+motion[0], 113+motion[1])
-        cv2.arrowedLine(img, centerPnt, motionPnt, (255,255,0), 2)
 
 
 #-------------------------------------------------------------------------------
@@ -218,19 +189,25 @@ class ImageSummary:
 
     #---------------------------------------------------------------------------
     def push(self, epoch, samples):
-        imgs = np.zeros((5, 227, 227, 3))
+        imgs = np.zeros((5, 227, 227*4, 3))
         for i, sample in enumerate(samples):
-            img = sample[0]
-            imgGT = np.copy(img)
-            imgPred = np.copy(img)
-            draw_box(imgPred, sample[1], sample[3], [255,0,0])
-            draw_box(imgGT, sample[2], sample[3], [0,255,0], True)
+            imgTarget = sample[0]
+            imgMid1 = sample[1]
+            imgMid2 = sample[2]
+            imgSearch = sample[3]
+            imgSearchGT = np.copy(imgSearch)
+            imgSearchPred = np.copy(imgSearch)
+            draw_box(imgMid1, sample[4], [255,255,0])
+            draw_box(imgMid2, sample[5], [255,255,0])
+            draw_box(imgSearchPred, sample[6], [255,0,0])
+            draw_box(imgSearchGT, sample[7], [0,255,0])
             #img[img>255] = 255
             #img[img<0] = 0
             alpha = 0.3
-            cv2.addWeighted(imgGT, alpha, imgPred, 1.-alpha, 0, img)
+            cv2.addWeighted(imgSearchGT, alpha, imgSearchPred, 1.-alpha, 0, imgSearch)
+            imgTrack = np.concatenate((imgTarget, imgMid1, imgMid2, imgSearch), axis=1)
 
-            imgs[i] = img.astype(np.uint8)
+            imgs[i] = imgTrack.astype(np.uint8)
 
         feed = {self.img_placeholder: imgs}
         summary = self.session.run(self.img_summary_op, feed_dict=feed)
