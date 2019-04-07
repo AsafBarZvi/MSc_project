@@ -217,10 +217,9 @@ def main():
 
                 with timer_dict['train']:
                     [_, loss, losses, res, checks] = sess.run([train_step, tracknet.loss, tracknet.losses, tracknet.result, tracknet.checks], feed_dict={tracknet.target: cur_batch[0],
-                                                                                                       tracknet.mid1: cur_batch[1],
-                                                                                                       tracknet.mid2: cur_batch[2],
-                                                                                                       tracknet.search: cur_batch[3],
-                                                                                                       tracknet.bbox: cur_batch[4]})
+                                                                                                       tracknet.mid: cur_batch[1],
+                                                                                                       tracknet.search: cur_batch[2],
+                                                                                                       tracknet.bbox: cur_batch[3]})
 
                 training_loss.add(loss)
 
@@ -228,8 +227,7 @@ def main():
 
                 if not iteraton % 100:
                     print checks
-                    print res['bbox_mid1'][0,:]
-                    print res['bbox_mid2'][0,:]
+                    print res['bbox_mid'][0,:]
                     print res['bbox_search'][0,:]
                     print losses
 
@@ -238,12 +236,10 @@ def main():
 
                 with timer_dict['summary']:
                     for i in range(5):
-                        bbox_mid1 = np.abs(res['bbox_mid1'][i]*226).astype(np.int)
-                        bbox_mid2 = np.abs(res['bbox_mid2'][i]*226).astype(np.int)
+                        bbox_mid = np.abs(res['bbox_mid'][i]*226).astype(np.int)
                         bbox_search = np.abs(res['bbox_search'][i]*226).astype(np.int)
                         bboxGT = np.abs(cur_batch[4][i,:4]*226).astype(np.int)
-                        training_imgs_samples.append((np.copy(cur_batch[0][i]), np.copy(cur_batch[1][i]), np.copy(cur_batch[2][i]), np.copy(cur_batch[3][i]),
-                            bbox_mid1, bbox_mid2, bbox_search, bboxGT))
+                        training_imgs_samples.append((np.copy(cur_batch[0][i]), np.copy(cur_batch[1][i]), np.copy(cur_batch[2][i]), bbox_mid, bbox_search, bboxGT))
 
                 #timerStats()
 
@@ -253,10 +249,9 @@ def main():
                 training_loss.push(iteraton)
 
                 summary = sess.run(merged_summary,feed_dict={tracknet.target: cur_batch[0],
-                                                             tracknet.mid1: cur_batch[1],
-                                                             tracknet.mid2: cur_batch[2],
-                                                             tracknet.search: cur_batch[3],
-                                                             tracknet.bbox: cur_batch[4]})
+                                                             tracknet.mid: cur_batch[1],
+                                                             tracknet.search: cur_batch[2],
+                                                             tracknet.bbox: cur_batch[3]})
 
                 summary_writer.add_summary(summary, iteraton)
 
@@ -277,23 +272,19 @@ def main():
                     cur_batch = sess.run(dp.batch_test_queue)
 
                     [loss, res] = sess.run([tracknet.loss, tracknet.result], feed_dict={tracknet.target: cur_batch[0],
-                                                                                        tracknet.mid1: cur_batch[1],
-                                                                                        tracknet.mid2: cur_batch[2],
-                                                                                        tracknet.search: cur_batch[3],
-                                                                                        tracknet.bbox: cur_batch[4]})
+                                                                                        tracknet.mid: cur_batch[1],
+                                                                                        tracknet.search: cur_batch[2],
+                                                                                        tracknet.bbox: cur_batch[3]})
 
                     validation_loss.add(loss)
 
 
                 with timer_dict['summary']:
                     for i in range(5):
-                        bbox_mid1 = np.abs(res['bbox_mid1'][i]*226).astype(np.int)
-                        bbox_mid2 = np.abs(res['bbox_mid2'][i]*226).astype(np.int)
+                        bbox_mid = np.abs(res['bbox_mid'][i]*226).astype(np.int)
                         bbox_search = np.abs(res['bbox_search'][i]*226).astype(np.int)
                         bboxGT = np.abs(cur_batch[4][i,:]*226).astype(np.int)
-                        validation_imgs_samples.append((np.copy(cur_batch[0][i]), np.copy(cur_batch[1][i]), np.copy(cur_batch[2][i]), np.copy(cur_batch[3][i]),
-                            bbox_mid1, bbox_mid2, bbox_search, bboxGT))
-
+                        validation_imgs_samples.append((np.copy(cur_batch[0][i]), np.copy(cur_batch[1][i]), np.copy(cur_batch[2][i]), bbox_mid, bbox_search, bboxGT))
                 #timerStats()
 
                 #-------------------------------------------------------------------
@@ -303,10 +294,9 @@ def main():
 
                 #net_summary = sess.run(net_summary_ops)
                 summary = sess.run(merged_summary,feed_dict={tracknet.target: cur_batch[0],
-                                                             tracknet.mid1: cur_batch[1],
-                                                             tracknet.mid2: cur_batch[2],
-                                                             tracknet.search: cur_batch[3],
-                                                             tracknet.bbox: cur_batch[4]})
+                                                             tracknet.mid: cur_batch[1],
+                                                             tracknet.search: cur_batch[2],
+                                                             tracknet.bbox: cur_batch[3]})
 
                 summary_writer.add_summary(summary, iteraton)
 

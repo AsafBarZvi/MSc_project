@@ -64,172 +64,83 @@ class TRACKNET:
     def build(self):
 
         self.target = tf.placeholder(tf.float32, [self.batch_size, 227, 227, 3])
-        self.mid1 = tf.placeholder(tf.float32, [self.batch_size, 227, 227, 3])
-        self.mid2 = tf.placeholder(tf.float32, [self.batch_size, 227, 227, 3])
+        self.mid = tf.placeholder(tf.float32, [self.batch_size, 227, 227, 3])
         self.search = tf.placeholder(tf.float32, [self.batch_size, 227, 227, 3])
         self.bbox= tf.placeholder(tf.float32, [self.batch_size, 4])
+
+        def resUnit(inData, outChannel, kerSize, layerName):
+            info = tf.layers.conv2d(inData, outChannel, kerSize, 1, name=layerName+'_info', reuse=False, activation=tf.nn.elu, padding='same', kernel_regularizer=self.wreg, bias_regularizer=self.breg)
+            _activation_summary(info)
+            strid = tf.layers.conv2d(info, outChannel*2, kerSize, 2, name=layerName+'_strid', reuse=False, activation=tf.nn.elu, padding='same', kernel_regularizer=self.wreg, bias_regularizer=self.breg)
+            _activation_summary(strid)
+            redu = tf.layers.conv2d(strid, outChannel, 1, 1, name=layerName+'_redu', reuse=False, activation=tf.nn.elu, padding='same', kernel_regularizer=self.wreg, bias_regularizer=self.breg)
+            _activation_summary(redu)
+            if 'ResUnit1' in layerName:
+                info = tf.image.resize_images(info, redu.shape[1:3])
+                outData = tf.concat([redu, info], axis=-1)
+            else:
+                inData = tf.image.resize_images(inData, redu.shape[1:3])
+                outData = tf.concat([redu, inData], axis=-1)
+            return outData
 
 
         ########### for target ###########
         with tf.variable_scope("net_target"):
 
-            x = tf.layers.conv2d(self.target,  8 , 3 , 2 , name='conv1_target'     , reuse=False, activation=tf.nn.relu , padding='same' , kernel_regularizer=self.wreg , bias_regularizer=self.breg)
-            _activation_summary(x)
-            x = tf.layers.conv2d(x          , 16 , 3 , 1 , name='conv2_target'     , reuse=False, activation=tf.nn.relu , padding='same' , kernel_regularizer=self.wreg , bias_regularizer=self.breg)
-            _activation_summary(x)
-            x = tf.layers.conv2d(x          , 32 , 3 , 2 , name='conv2a_target'    , reuse=False, activation=tf.nn.relu , padding='same' , kernel_regularizer=self.wreg , bias_regularizer=self.breg)
-            _activation_summary(x)
-            x = tf.layers.conv2d(x          , 16 , 1 , 1 , name='conv2redu_target' , reuse=False, activation=tf.nn.relu , padding='same' , kernel_regularizer=self.wreg , bias_regularizer=self.breg)
-            _activation_summary(x)
-            x = tf.layers.conv2d(x          , 32 , 3 , 1 , name='conv3_target'     , reuse=False, activation=tf.nn.relu , padding='same' , kernel_regularizer=self.wreg , bias_regularizer=self.breg)
-            _activation_summary(x)
-            x = tf.layers.conv2d(x          , 64 , 3 , 2 , name='conv3a_target'    , reuse=False, activation=tf.nn.relu , padding='same' , kernel_regularizer=self.wreg , bias_regularizer=self.breg)
-            _activation_summary(x)
-            x = tf.layers.conv2d(x          , 32 , 1 , 1 , name='conv3redu_target' , reuse=False, activation=tf.nn.relu , padding='same' , kernel_regularizer=self.wreg , bias_regularizer=self.breg)
-            _activation_summary(x)
-            x = tf.layers.conv2d(x          , 64 , 3 , 1 , name='conv4_target'     , reuse=False, activation=tf.nn.relu , padding='same' , kernel_regularizer=self.wreg , bias_regularizer=self.breg)
-            _activation_summary(x)
-            x = tf.layers.conv2d(x          , 96 , 3 , 2 , name='conv4a_target'    , reuse=False, activation=tf.nn.relu , padding='same' , kernel_regularizer=self.wreg , bias_regularizer=self.breg)
-            _activation_summary(x)
-            x = tf.layers.conv2d(x          , 64 , 1 , 1 , name='conv4redu_target' , reuse=False, activation=tf.nn.relu , padding='same' , kernel_regularizer=self.wreg , bias_regularizer=self.breg)
-            _activation_summary(x)
-            x = tf.layers.conv2d(x          , 96 , 3 , 1 , name='conv5_target'     , reuse=False, activation=tf.nn.relu , padding='same' , kernel_regularizer=self.wreg , bias_regularizer=self.breg)
-            _activation_summary(x)
+            x = self.target
+            x = resUnit(x, 16, 3, 'targetResUnit1')
+            x = resUnit(x, 32, 3, 'targetResUnit2')
+            x = resUnit(x, 64, 3, 'targetResUnit3')
+            x = resUnit(x,128, 3, 'targetResUnit4')
             self.targetF = x
-            x = tf.layers.conv2d(x          ,128 , 3 , 2 , name='conv5a_target'    , reuse=False, activation=tf.nn.relu , padding='same' , kernel_regularizer=self.wreg , bias_regularizer=self.breg)
-            _activation_summary(x)
-            self.conv_output_target = tf.layers.conv2d(x , 32 , 1 , 1 , name='conv5redu_target' , reuse=False, activation=tf.nn.relu , padding='same' , kernel_regularizer=self.wreg , bias_regularizer=self.breg)
+            x = resUnit(x,256, 3, 'targetResUnit5')
+            self.conv_output_target = tf.layers.conv2d(x , 64 , 1 , 1 , name='conv6redu_target' , reuse=False, activation=tf.nn.elu , padding='same' , kernel_regularizer=self.wreg , bias_regularizer=self.breg)
             _activation_summary(self.conv_output_target)
 
-        ########### for mid1 ###########
-        with tf.variable_scope("net_mid1"):
+        ########### for mid ###########
+        with tf.variable_scope("net_mid"):
 
-            x = tf.layers.conv2d(self.mid1  ,  8 , 3 , 2 , name='conv1_mid1'     , reuse=False, activation=tf.nn.relu , padding='same' , kernel_regularizer=self.wreg , bias_regularizer=self.breg)
-            _activation_summary(x)
-            x = tf.layers.conv2d(x          , 16 , 3 , 1 , name='conv2_mid1'     , reuse=False, activation=tf.nn.relu , padding='same' , kernel_regularizer=self.wreg , bias_regularizer=self.breg)
-            _activation_summary(x)
-            x = tf.layers.conv2d(x          , 32 , 3 , 2 , name='conv2a_mid1'    , reuse=False, activation=tf.nn.relu , padding='same' , kernel_regularizer=self.wreg , bias_regularizer=self.breg)
-            _activation_summary(x)
-            x = tf.layers.conv2d(x          , 16 , 1 , 1 , name='conv2redu_mid1' , reuse=False, activation=tf.nn.relu , padding='same' , kernel_regularizer=self.wreg , bias_regularizer=self.breg)
-            _activation_summary(x)
-            x = tf.layers.conv2d(x          , 32 , 3 , 1 , name='conv3_mid1'     , reuse=False, activation=tf.nn.relu , padding='same' , kernel_regularizer=self.wreg , bias_regularizer=self.breg)
-            _activation_summary(x)
-            x = tf.layers.conv2d(x          , 64 , 3 , 2 , name='conv3a_mid1'    , reuse=False, activation=tf.nn.relu , padding='same' , kernel_regularizer=self.wreg , bias_regularizer=self.breg)
-            _activation_summary(x)
-            x = tf.layers.conv2d(x          , 32 , 1 , 1 , name='conv3redu_mid1' , reuse=False, activation=tf.nn.relu , padding='same' , kernel_regularizer=self.wreg , bias_regularizer=self.breg)
-            _activation_summary(x)
-            x = tf.layers.conv2d(x          , 64 , 3 , 1 , name='conv4_mid1'     , reuse=False, activation=tf.nn.relu , padding='same' , kernel_regularizer=self.wreg , bias_regularizer=self.breg)
-            _activation_summary(x)
-            x = tf.layers.conv2d(x          , 96 , 3 , 2 , name='conv4a_mid1'    , reuse=False, activation=tf.nn.relu , padding='same' , kernel_regularizer=self.wreg , bias_regularizer=self.breg)
-            _activation_summary(x)
-            x = tf.layers.conv2d(x          , 64 , 1 , 1 , name='conv4redu_mid1' , reuse=False, activation=tf.nn.relu , padding='same' , kernel_regularizer=self.wreg , bias_regularizer=self.breg)
-            _activation_summary(x)
-            x = tf.layers.conv2d(x          , 96 , 3 , 1 , name='conv5_mid1'     , reuse=False, activation=tf.nn.relu , padding='same' , kernel_regularizer=self.wreg , bias_regularizer=self.breg)
-            _activation_summary(x)
-            self.mid1F = x
-            x = tf.layers.conv2d(x          ,128 , 3 , 2 , name='conv5a_mid1'    , reuse=False, activation=tf.nn.relu , padding='same' , kernel_regularizer=self.wreg , bias_regularizer=self.breg)
-            _activation_summary(x)
-            self.conv_output_mid1 = tf.layers.conv2d(x , 32 , 1 , 1 , name='conv5redu_mid1' , reuse=False, activation=tf.nn.relu , padding='same' , kernel_regularizer=self.wreg , bias_regularizer=self.breg)
-            _activation_summary(self.conv_output_mid1)
-
-        ########### for mid2 ###########
-        with tf.variable_scope("net_mid2"):
-
-            x = tf.layers.conv2d(self.mid2  ,  8 , 3 , 2 , name='conv1_mid2'     , reuse=False, activation=tf.nn.relu , padding='same' , kernel_regularizer=self.wreg , bias_regularizer=self.breg)
-            _activation_summary(x)
-            x = tf.layers.conv2d(x          , 16 , 3 , 1 , name='conv2_mid2'     , reuse=False, activation=tf.nn.relu , padding='same' , kernel_regularizer=self.wreg , bias_regularizer=self.breg)
-            _activation_summary(x)
-            x = tf.layers.conv2d(x          , 32 , 3 , 2 , name='conv2a_mid2'    , reuse=False, activation=tf.nn.relu , padding='same' , kernel_regularizer=self.wreg , bias_regularizer=self.breg)
-            _activation_summary(x)
-            x = tf.layers.conv2d(x          , 16 , 1 , 1 , name='conv2redu_mid2' , reuse=False, activation=tf.nn.relu , padding='same' , kernel_regularizer=self.wreg , bias_regularizer=self.breg)
-            _activation_summary(x)
-            x = tf.layers.conv2d(x          , 32 , 3 , 1 , name='conv3_mid2'     , reuse=False, activation=tf.nn.relu , padding='same' , kernel_regularizer=self.wreg , bias_regularizer=self.breg)
-            _activation_summary(x)
-            x = tf.layers.conv2d(x          , 64 , 3 , 2 , name='conv3a_mid2'    , reuse=False, activation=tf.nn.relu , padding='same' , kernel_regularizer=self.wreg , bias_regularizer=self.breg)
-            _activation_summary(x)
-            x = tf.layers.conv2d(x          , 32 , 1 , 1 , name='conv3redu_mid2' , reuse=False, activation=tf.nn.relu , padding='same' , kernel_regularizer=self.wreg , bias_regularizer=self.breg)
-            _activation_summary(x)
-            x = tf.layers.conv2d(x          , 64 , 3 , 1 , name='conv4_mid2'     , reuse=False, activation=tf.nn.relu , padding='same' , kernel_regularizer=self.wreg , bias_regularizer=self.breg)
-            _activation_summary(x)
-            x = tf.layers.conv2d(x          , 96 , 3 , 2 , name='conv4a_mid2'    , reuse=False, activation=tf.nn.relu , padding='same' , kernel_regularizer=self.wreg , bias_regularizer=self.breg)
-            _activation_summary(x)
-            x = tf.layers.conv2d(x          , 64 , 1 , 1 , name='conv4redu_mid2' , reuse=False, activation=tf.nn.relu , padding='same' , kernel_regularizer=self.wreg , bias_regularizer=self.breg)
-            _activation_summary(x)
-            x = tf.layers.conv2d(x          , 96 , 3 , 1 , name='conv5_mid2'     , reuse=False, activation=tf.nn.relu , padding='same' , kernel_regularizer=self.wreg , bias_regularizer=self.breg)
-            _activation_summary(x)
-            self.mid2F = x
-            x = tf.layers.conv2d(x          ,128 , 3 , 2 , name='conv5a_mid2'    , reuse=False, activation=tf.nn.relu , padding='same' , kernel_regularizer=self.wreg , bias_regularizer=self.breg)
-            _activation_summary(x)
-            self.conv_output_mid2 = tf.layers.conv2d(x , 32 , 1 , 1 , name='conv5redu_mid2' , reuse=False, activation=tf.nn.relu , padding='same' , kernel_regularizer=self.wreg , bias_regularizer=self.breg)
-            _activation_summary(self.conv_output_mid2)
-
+            x = self.mid
+            x = resUnit(x, 16, 3, 'midResUnit1')
+            x = resUnit(x, 32, 3, 'midResUnit2')
+            x = resUnit(x, 64, 3, 'midResUnit3')
+            x = resUnit(x,128, 3, 'midResUnit4')
+            self.midF = x
+            x = resUnit(x,256, 3, 'midResUnit5')
+            self.conv_output_mid = tf.layers.conv2d(x , 64 , 1 , 1 , name='conv6redu_mid' , reuse=False, activation=tf.nn.elu , padding='same' , kernel_regularizer=self.wreg , bias_regularizer=self.breg)
+            _activation_summary(self.conv_output_mid)
 
         ########### for search ###########
         with tf.variable_scope("net_search"):
 
-            x = tf.layers.conv2d(self.search  ,  8 , 3 , 2 , name='conv1_search'     , reuse=False, activation=tf.nn.relu , padding='same' , kernel_regularizer=self.wreg , bias_regularizer=self.breg)
-            _activation_summary(x)
-            x = tf.layers.conv2d(x          , 16 , 3 , 1 , name='conv2_search'     , reuse=False, activation=tf.nn.relu , padding='same' , kernel_regularizer=self.wreg , bias_regularizer=self.breg)
-            _activation_summary(x)
-            x = tf.layers.conv2d(x          , 32 , 3 , 2 , name='conv2a_search'    , reuse=False, activation=tf.nn.relu , padding='same' , kernel_regularizer=self.wreg , bias_regularizer=self.breg)
-            _activation_summary(x)
-            x = tf.layers.conv2d(x          , 16 , 1 , 1 , name='conv2redu_search' , reuse=False, activation=tf.nn.relu , padding='same' , kernel_regularizer=self.wreg , bias_regularizer=self.breg)
-            _activation_summary(x)
-            x = tf.layers.conv2d(x          , 32 , 3 , 1 , name='conv3_search'     , reuse=False, activation=tf.nn.relu , padding='same' , kernel_regularizer=self.wreg , bias_regularizer=self.breg)
-            _activation_summary(x)
-            x = tf.layers.conv2d(x          , 64 , 3 , 2 , name='conv3a_search'    , reuse=False, activation=tf.nn.relu , padding='same' , kernel_regularizer=self.wreg , bias_regularizer=self.breg)
-            _activation_summary(x)
-            x = tf.layers.conv2d(x          , 32 , 1 , 1 , name='conv3redu_search' , reuse=False, activation=tf.nn.relu , padding='same' , kernel_regularizer=self.wreg , bias_regularizer=self.breg)
-            _activation_summary(x)
-            x = tf.layers.conv2d(x          , 64 , 3 , 1 , name='conv4_search'     , reuse=False, activation=tf.nn.relu , padding='same' , kernel_regularizer=self.wreg , bias_regularizer=self.breg)
-            _activation_summary(x)
-            x = tf.layers.conv2d(x          , 96 , 3 , 2 , name='conv4a_search'    , reuse=False, activation=tf.nn.relu , padding='same' , kernel_regularizer=self.wreg , bias_regularizer=self.breg)
-            _activation_summary(x)
-            x = tf.layers.conv2d(x          , 64 , 1 , 1 , name='conv4redu_search' , reuse=False, activation=tf.nn.relu , padding='same' , kernel_regularizer=self.wreg , bias_regularizer=self.breg)
-            _activation_summary(x)
-            x = tf.layers.conv2d(x          , 96 , 3 , 1 , name='conv5_search'     , reuse=False, activation=tf.nn.relu , padding='same' , kernel_regularizer=self.wreg , bias_regularizer=self.breg)
-            _activation_summary(x)
+            x = self.search
+            x = resUnit(x, 16, 3, 'searchResUnit1')
+            x = resUnit(x, 32, 3, 'searchResUnit2')
+            x = resUnit(x, 64, 3, 'searchResUnit3')
+            x = resUnit(x,128, 3, 'searchResUnit4')
             self.searchF = x
-            x = tf.layers.conv2d(x          ,128 , 3 , 2 , name='conv5a_search'    , reuse=False, activation=tf.nn.relu , padding='same' , kernel_regularizer=self.wreg , bias_regularizer=self.breg)
-            _activation_summary(x)
-            self.conv_output_search = tf.layers.conv2d(x , 32 , 1 , 1 , name='conv5redu_search' , reuse=False, activation=tf.nn.relu , padding='same' , kernel_regularizer=self.wreg , bias_regularizer=self.breg)
+            x = resUnit(x,256, 3, 'searchResUnit5')
+            self.conv_output_search = tf.layers.conv2d(x , 64 , 1 , 1 , name='conv6redu_search' , reuse=False, activation=tf.nn.elu , padding='same' , kernel_regularizer=self.wreg , bias_regularizer=self.breg)
             _activation_summary(self.conv_output_search)
 
         ########### Concatnate all nets ###########
         ########### fully connencted layers ###########
-        with tf.variable_scope("fc_all_nets"):
+        with tf.variable_scope("fc_nets"):
 
-            # now four features map, each 6 x 6 x 32
-            concat1 = tf.concat([self.conv_output_target, self.conv_output_mid1], axis = 3)
-            concat2 = tf.concat([self.conv_output_target, self.conv_output_mid1, self.conv_output_mid2], axis = 3)
-            concat3 = tf.concat([self.conv_output_target, self.conv_output_mid1, self.conv_output_mid2, self.conv_output_search], axis = 3)
+            # now three features map, each 6 x 6 x 64
+            concat = tf.concat([self.conv_output_target, self.conv_output_mid, self.conv_output_search], axis = 3)
 
-            x1 = tf.layers.flatten(concat1)
-            x2 = tf.layers.flatten(concat2)
-            x3 = tf.layers.flatten(concat3)
+            x = tf.layers.flatten(concat)
 
-            x1 = tf.layers.dense(x1, 1028, name='mid1_fc1', activation=tf.nn.relu, kernel_regularizer=self.wreg , bias_regularizer=self.breg)
-            _activation_summary(x1)
-            x1 = tf.layers.dense(x1, 1028, name='mid1_fc2', activation=tf.nn.relu, kernel_regularizer=self.wreg , bias_regularizer=self.breg)
-            _activation_summary(x1)
-            self.fc_output_mid1 = tf.layers.dense(x1,    4, name='mid1_fc3', activation=None, kernel_regularizer=self.wreg , bias_regularizer=self.breg)
-
-            x2 = tf.layers.dense(x2, 1028, name='mid2_fc1', activation=tf.nn.relu, kernel_regularizer=self.wreg , bias_regularizer=self.breg)
-            _activation_summary(x2)
-            x2 = tf.layers.dense(x2, 1028, name='mid2_fc2', activation=tf.nn.relu, kernel_regularizer=self.wreg , bias_regularizer=self.breg)
-            _activation_summary(x2)
-            self.fc_output_mid2 = tf.layers.dense(x2,    4, name='mid2_fc3', activation=None, kernel_regularizer=self.wreg , bias_regularizer=self.breg)
-
-            x3 = tf.layers.dense(x3, 1028, name='search_fc1', activation=tf.nn.relu, kernel_regularizer=self.wreg , bias_regularizer=self.breg)
-            _activation_summary(x3)
-            x3 = tf.layers.dense(x3, 1028, name='search_fc2', activation=tf.nn.relu, kernel_regularizer=self.wreg , bias_regularizer=self.breg)
-            _activation_summary(x3)
-            self.fc_output_search = tf.layers.dense(x3,    4, name='search_fc3', activation=None, kernel_regularizer=self.wreg , bias_regularizer=self.breg)
+            x = tf.layers.dense(x, 4096, name='fc1', activation=tf.nn.elu, kernel_regularizer=self.wreg , bias_regularizer=self.breg)
+            _activation_summary(x)
+            x = tf.layers.dense(x, 2048, name='fc2', activation=tf.nn.elu, kernel_regularizer=self.wreg , bias_regularizer=self.breg)
+            _activation_summary(x)
+            self.fc_output = tf.layers.dense(x, 8, name='fc_out', activation=None, kernel_regularizer=self.wreg , bias_regularizer=self.breg)
 
             self.result = {
-                    'bbox_mid1': self.fc_output_mid1,
-                    'bbox_mid2': self.fc_output_mid2,
-                    'bbox_search': self.fc_output_search
+                    'bbox_mid': self.fc_output[:,:4],
+                    'bbox_search': self.fc_output[:,4:]
             }
 
 
@@ -238,90 +149,131 @@ class TRACKNET:
         #-----------------------------------------------------------------------
         with tf.variable_scope("loss"):
 
-            fc_output_mid1 = self.fc_output_mid1
-            fc_output_mid2 = self.fc_output_mid2
-            fc_output_search = self.fc_output_search
-            badBBmid1 = 0
-            badBBmid2 = 0
+            fc_output_mid = self.fc_output[:,:4]
+            fc_output_search = self.fc_output[:,4:]
+            badBBmid = 0
             badBBsearch = 0
 
-            targetPM = self.target
-            targetPM = targetPM[:, targetPM.shape[1]*1/4:targetPM.shape[1]*3/4, targetPM.shape[2]*1/4:targetPM.shape[2]*3/4, :]
+            ## Extract the tracked object in the input image
+            targetPM = self.targetF
+            targetPM = targetPM[:, targetPM.shape[1]*1/3:targetPM.shape[1]*2/3, targetPM.shape[2]*1/3:targetPM.shape[2]*2/3, :]
 
-            def f1(batchIdx, img): return img[batchIdx, img.shape[1]*1/4:img.shape[1]*3/4, img.shape[2]*1/4:img.shape[2]*3/4, :]
+            def f1(batchIdx, img): return tf.abs(img[batchIdx, img.shape[1]*1/3:img.shape[1]*2/3, img.shape[2]*1/3:img.shape[2]*2/3, :]-256)
             def f2(img): return tf.image.resize_images(img, [int(targetPM.shape[1]),int(targetPM.shape[2])])
 
-            mid1F = self.mid1
-            mid1PM = mid1F[0,tf.cast(int(mid1F.shape[1])*fc_output_mid1[0,1], tf.int32):tf.cast(int(mid1F.shape[1])*fc_output_mid1[0,3], tf.int32),
-                    tf.cast(int(mid1F.shape[2])*fc_output_mid1[0,0], tf.int32):tf.cast(int(mid1F.shape[2])*fc_output_mid1[0,2], tf.int32), :]
-            badBBmid1 = tf.cond(tf.equal(tf.size(mid1PM), 0), lambda: tf.add(badBBmid1, 1), lambda: badBBmid1, name="badBBmid1")
-            mid1PM = tf.cond(tf.equal(tf.size(mid1PM), 0), lambda: f1(0, mid1F), lambda: f2(mid1PM))
-            mid1PM = tf.expand_dims(mid1PM, 0)
+            midF = self.midF
+            midPM = midF[0,tf.cast(int(midF.shape[1])*fc_output_mid[0,1], tf.int32):tf.cast(int(midF.shape[1])*fc_output_mid[0,3], tf.int32),
+                    tf.cast(int(midF.shape[2])*fc_output_mid[0,0], tf.int32):tf.cast(int(midF.shape[2])*fc_output_mid[0,2], tf.int32), :]
+            badBBmid = tf.cond(tf.equal(tf.size(midPM), 0), lambda: tf.add(badBBmid, 1), lambda: badBBmid, name="badBBmid")
+            midPM = tf.cond(tf.equal(tf.size(midPM), 0), lambda: f1(0, midF), lambda: f2(midPM))
+            midPM = tf.expand_dims(midPM, 0)
             for i in range(1, self.batch_size):
-                mid1F_cropNscale = mid1F[i,tf.cast(int(mid1F.shape[1])*fc_output_mid1[i,1], tf.int32):tf.cast(int(mid1F.shape[1])*fc_output_mid1[i,3], tf.int32),
-                        tf.cast(int(mid1F.shape[2])*fc_output_mid1[i,0], tf.int32):tf.cast(int(mid1F.shape[2])*fc_output_mid1[i,2], tf.int32), :]
-                badBBmid1 = tf.cond(tf.equal(tf.size(mid1F_cropNscale), 0), lambda: tf.add(badBBmid1, 1), lambda: badBBmid1, name="badBBmid1")
-                mid1F_cropNscale = tf.cond(tf.equal(tf.size(mid1F_cropNscale), 0), lambda: f1(i, mid1F), lambda: f2(mid1F_cropNscale))
-                mid1F_cropNscale = tf.expand_dims(mid1F_cropNscale, 0)
-                mid1PM = tf.concat([mid1PM,mid1F_cropNscale], axis=0)
-
-            mid2F = self.mid2
-            mid2PM = mid2F[0,tf.cast(int(mid2F.shape[1])*fc_output_mid2[0,1], tf.int32):tf.cast(int(mid2F.shape[1])*fc_output_mid2[0,3], tf.int32),
-                    tf.cast(int(mid2F.shape[2])*fc_output_mid2[0,0], tf.int32):tf.cast(int(mid2F.shape[2])*fc_output_mid2[0,2], tf.int32), :]
-            badBBmid2 = tf.cond(tf.equal(tf.size(mid2PM), 0), lambda: tf.add(badBBmid2, 1), lambda: badBBmid2, name="badBBmid2")
-            mid2PM = tf.cond(tf.equal(tf.size(mid2PM), 0), lambda: f1(0, mid2F), lambda: f2(mid2PM))
-            mid2PM = tf.expand_dims(mid2PM, 0)
-            for i in range(1, self.batch_size):
-                mid2F_cropNscale = mid2F[i,tf.cast(int(mid2F.shape[1])*fc_output_mid2[i,1], tf.int32):tf.cast(int(mid2F.shape[1])*fc_output_mid2[i,3], tf.int32),
-                        tf.cast(int(mid2F.shape[2])*fc_output_mid2[i,0], tf.int32):tf.cast(int(mid2F.shape[2])*fc_output_mid2[i,2], tf.int32), :]
-                badBBmid2 = tf.cond(tf.equal(tf.size(mid2F_cropNscale), 0), lambda: tf.add(badBBmid2, 1), lambda: badBBmid2, name="badBBmid2")
-                mid2F_cropNscale = tf.cond(tf.equal(tf.size(mid2F_cropNscale), 0), lambda: f1(i, mid2F), lambda: f2(mid2F_cropNscale))
-                mid2F_cropNscale = tf.expand_dims(mid2F_cropNscale, 0)
-                mid2PM = tf.concat([mid2PM,mid2F_cropNscale], axis=0)
-
-            #searchF = self.search
-            #searchPM = searchF[0,tf.cast(int(searchF.shape[1])*fc_output_search[0,1], tf.int32):tf.cast(int(searchF.shape[1])*fc_output_search[0,3], tf.int32),
-            #        tf.cast(int(searchF.shape[2])*fc_output_search[0,0], tf.int32):tf.cast(int(searchF.shape[2])*fc_output_search[0,2], tf.int32), :]
-            #badBBsearch = tf.cond(tf.equal(tf.size(searchPM), 0), lambda: tf.add(badBBsearch, 1), lambda: badBBsearch, name="badBBsearch")
-            #searchPM = tf.cond(tf.equal(tf.size(searchPM), 0), lambda: f1(0, searchF), lambda: f2(searchPM))
-            #searchPM = tf.expand_dims(searchPM, 0)
-            #for i in range(1, self.batch_size):
-            #    searchF_cropNscale = searchF[i,tf.cast(int(searchF.shape[1])*fc_output_search[i,1], tf.int32):tf.cast(int(searchF.shape[1])*fc_output_search[i,3], tf.int32),
-            #            tf.cast(int(searchF.shape[2])*fc_output_search[i,0], tf.int32):tf.cast(int(searchF.shape[2])*fc_output_search[i,2], tf.int32), :]
-            #    badBBsearch = tf.cond(tf.equal(tf.size(searchF_cropNscale), 0), lambda: tf.add(badBBsearch, 1), lambda: badBBsearch, name="badBBsearch")
-            #    searchF_cropNscale = tf.cond(tf.equal(tf.size(searchF_cropNscale), 0), lambda: f1(i, searchF), lambda: f2(searchF_cropNscale))
-            #    searchF_cropNscale = tf.expand_dims(searchF_cropNscale, 0)
-            #    searchPM = tf.concat([searchPM,searchF_cropNscale], axis=0)
+                midF_cropNscale = midF[i,tf.cast(int(midF.shape[1])*fc_output_mid[i,1], tf.int32):tf.cast(int(midF.shape[1])*fc_output_mid[i,3], tf.int32),
+                        tf.cast(int(midF.shape[2])*fc_output_mid[i,0], tf.int32):tf.cast(int(midF.shape[2])*fc_output_mid[i,2], tf.int32), :]
+                badBBmid = tf.cond(tf.equal(tf.size(midF_cropNscale), 0), lambda: tf.add(badBBmid, 1), lambda: badBBmid, name="badBBmid")
+                midF_cropNscale = tf.cond(tf.equal(tf.size(midF_cropNscale), 0), lambda: f1(i, midF), lambda: f2(midF_cropNscale))
+                midF_cropNscale = tf.expand_dims(midF_cropNscale, 0)
+                midPM = tf.concat([midPM,midF_cropNscale], axis=0)
 
             bboxGT = self.bbox
-            bboxPredSearch = self.fc_output_search
+            bboxPredSearch = fc_output_search
 
-            searchF = self.search
-            searchPM = searchF[0, bboxGT[0,1]:bboxGT[0,3], bboxGT[0,0]:bboxGT[0,2], :]
+            searchF = self.searchF
+            searchPM = searchF[0,tf.cast(int(searchF.shape[1])*bboxGT[0,1], tf.int32):tf.cast(int(searchF.shape[1])*bboxGT[0,3], tf.int32),
+                    tf.cast(int(searchF.shape[2])*bboxGT[0,0], tf.int32):tf.cast(int(searchF.shape[2])*bboxGT[0,2], tf.int32), :]
             badBBsearch = tf.cond(tf.equal(tf.size(searchPM), 0), lambda: tf.add(badBBsearch, 1), lambda: badBBsearch, name="badBBsearch")
             searchPM = tf.cond(tf.equal(tf.size(searchPM), 0), lambda: f1(0, searchF), lambda: f2(searchPM))
             searchPM = tf.expand_dims(searchPM, 0)
             for i in range(1, self.batch_size):
-                searchF_cropNscale = searchF[i, bboxGT[i,1]:bboxGT[i,3], bboxGT[i,0]:bboxGT[i,2], :]
+                searchF_cropNscale = searchF[i,tf.cast(int(searchF.shape[1])*bboxGT[i,1], tf.int32):tf.cast(int(searchF.shape[1])*bboxGT[i,3], tf.int32),
+                        tf.cast(int(searchF.shape[2])*bboxGT[i,0], tf.int32):tf.cast(int(searchF.shape[2])*bboxGT[i,2], tf.int32), :]
                 badBBsearch = tf.cond(tf.equal(tf.size(searchF_cropNscale), 0), lambda: tf.add(badBBsearch, 1), lambda: badBBsearch, name="badBBsearch")
                 searchF_cropNscale = tf.cond(tf.equal(tf.size(searchF_cropNscale), 0), lambda: f1(i, searchF), lambda: f2(searchF_cropNscale))
                 searchF_cropNscale = tf.expand_dims(searchF_cropNscale, 0)
                 searchPM = tf.concat([searchPM, searchF_cropNscale], axis=0)
 
-
-            _variable_summaries(badBBmid1)
-            _variable_summaries(badBBmid2)
+            _variable_summaries(badBBmid)
             _variable_summaries(badBBsearch)
 
-            self.checks = {'badBBmid1': badBBmid1, 'badBBmid2': badBBmid2, 'badBBsearch': badBBsearch}
+            self.checks = {'badBBmid': badBBmid, 'badBBsearch': badBBsearch}
 
-            ## Calculate photometric losses
-            self.pmLossTargetMid1 = tf.sqrt(tf.reduce_mean(tf.reduce_sum(tf.square(targetPM/256-mid1PM/256)), name="pmLossTargetMid1"))
-            _variable_summaries(self.pmLossTargetMid1)
-            #self.pmLossMid1Mid2 = tf.reduce_mean(tf.reduce_sum(tf.square(mid1PM/256-mid2PM/256)), name="pmLossMid1Mid2")
-            #_variable_summaries(self.pmLossMid1Mid2)
-            self.pmLossMid2Search = tf.sqrt(tf.reduce_mean(tf.reduce_sum(tf.square(mid2PM/256-searchPM/256)), name="pmLossMid2Search"))
-            _variable_summaries(self.pmLossMid2Search)
+            ## Calculate NCC photometric losses on input images
+            #meanTarget, varTarget = tf.nn.moments(targetPM, axes=[1,2,3])
+            #meanTarget = tf.reshape(meanTarget, [-1,1,1,1])
+            #stdTarget = tf.reshape(tf.sqrt(varTarget), [-1,1,1,1])
+
+            #meanMid, varMid = tf.nn.moments(midPM, axes=[1,2,3])
+            #meanMid = tf.reshape(meanMid, [-1,1,1,1])
+            #stdMid = tf.reshape(tf.sqrt(varMid), [-1,1,1,1])
+
+            #meanSearch, varSearch = tf.nn.moments(searchPM, axes=[1,2,3])
+            #meanSearch = tf.reshape(meanSearch, [-1,1,1,1])
+            #stdSearch = tf.reshape(tf.sqrt(varSearch), [-1,1,1,1])
+
+            #pmLossTargetMid = tf.divide(1., tf.abs(tf.reduce_mean(((targetPM-meanTarget)/stdTarget)*((midPM-meanMid)/stdMid))), name="pmNccLossTargetMid")
+            #_variable_summaries(pmLossTargetMid)
+            #self.pmLossTargetMid = tf.where(tf.is_nan(pmLossTargetMid), 0., pmLossTargetMid)
+            #pmLossMidSearch = tf.divide(1., tf.abs(tf.reduce_mean(((searchPM-meanSearch)/stdSearch)*((midPM-meanMid)/stdMid))), name="pmNccLossMidSearch")
+            #_variable_summaries(pmLossMidSearch)
+            #self.pmLossMidSearch = tf.where(tf.is_nan(pmLossMidSearch), 0., pmLossMidSearch)
+
+
+            ## Extract the tracked object in the feature maps
+            #targetPM = self.targetF
+            #targetPM = targetPM[:, targetPM.shape[1]*1/3:targetPM.shape[1]*2/3, targetPM.shape[2]*1/3:targetPM.shape[2]*2/3, :]
+
+            #midF = self.midF
+            #midPM = midF[0,tf.cast(int(midF.shape[1])*fc_output_mid[0,1], tf.int32):tf.cast(int(midF.shape[1])*fc_output_mid[0,3], tf.int32),
+            #        tf.cast(int(midF.shape[2])*fc_output_mid[0,0], tf.int32):tf.cast(int(midF.shape[2])*fc_output_mid[0,2], tf.int32), :]
+            #midPM = tf.cond(tf.equal(tf.size(midPM), 0), lambda: f1(0, midF), lambda: f2(midPM))
+            #midPM = tf.expand_dims(midPM, 0)
+            #for i in range(1, self.batch_size):
+            #    midF_cropNscale = midF[i,tf.cast(int(midF.shape[1])*fc_output_mid[i,1], tf.int32):tf.cast(int(midF.shape[1])*fc_output_mid[i,3], tf.int32),
+            #            tf.cast(int(midF.shape[2])*fc_output_mid[i,0], tf.int32):tf.cast(int(midF.shape[2])*fc_output_mid[i,2], tf.int32), :]
+            #    midF_cropNscale = tf.cond(tf.equal(tf.size(midF_cropNscale), 0), lambda: f1(i, midF), lambda: f2(midF_cropNscale))
+            #    midF_cropNscale = tf.expand_dims(midF_cropNscale, 0)
+            #    midPM = tf.concat([midPM,midF_cropNscale], axis=0)
+
+            #searchF = self.searchF
+            #searchPM = searchF[0,tf.cast(int(searchF.shape[1])*bboxGT[0,1], tf.int32):tf.cast(int(searchF.shape[1])*bboxGT[0,3], tf.int32),
+            #        tf.cast(int(searchF.shape[2])*bboxGT[0,0], tf.int32):tf.cast(int(searchF.shape[2])*bboxGT[0,2], tf.int32), :]
+            #searchPM = tf.cond(tf.equal(tf.size(searchPM), 0), lambda: f1(0, searchF), lambda: f2(searchPM))
+            #searchPM = tf.expand_dims(searchPM, 0)
+            #for i in range(1, self.batch_size):
+            #    searchF_cropNscale = searchF[i,tf.cast(int(searchF.shape[1])*bboxGT[i,1], tf.int32):tf.cast(int(searchF.shape[1])*bboxGT[i,3], tf.int32),
+            #            tf.cast(int(searchF.shape[2])*bboxGT[i,0], tf.int32):tf.cast(int(searchF.shape[2])*bboxGT[i,2], tf.int32), :]
+            #    searchF_cropNscale = tf.cond(tf.equal(tf.size(searchF_cropNscale), 0), lambda: f1(i, searchF), lambda: f2(searchF_cropNscale))
+            #    searchF_cropNscale = tf.expand_dims(searchF_cropNscale, 0)
+            #    searchPM = tf.concat([searchPM, searchF_cropNscale], axis=0)
+
+            ## Calculate NCC photometric losses on feature maps
+            meanTarget, varTarget = tf.nn.moments(targetPM, axes=[1,2,3])
+            meanTarget = tf.reshape(meanTarget, [-1,1,1,1])
+            stdTarget = tf.reshape(tf.sqrt(varTarget), [-1,1,1,1])
+
+            meanMid, varMid = tf.nn.moments(midPM, axes=[1,2,3])
+            meanMid = tf.reshape(meanMid, [-1,1,1,1])
+            stdMid = tf.reshape(tf.sqrt(varMid), [-1,1,1,1])
+
+            meanSearch, varSearch = tf.nn.moments(searchPM, axes=[1,2,3])
+            meanSearch = tf.reshape(meanSearch, [-1,1,1,1])
+            stdSearch = tf.reshape(tf.sqrt(varSearch), [-1,1,1,1])
+
+            pmLossTargetMidF = tf.divide(1., tf.abs(tf.reduce_mean(((targetPM-meanTarget)/stdTarget)*((midPM-meanMid)/stdMid))), name="pmNccLossTargetMidF")
+            _variable_summaries(pmLossTargetMidF)
+            self.pmLossTargetMidF = tf.where(tf.is_nan(pmLossTargetMidF), 0., pmLossTargetMidF)
+            pmLossMidSearchF = tf.divide(1., tf.abs(tf.reduce_mean(((searchPM-meanSearch)/stdSearch)*((midPM-meanMid)/stdMid))), name="pmNccLossMidSearchF")
+            _variable_summaries(pmLossMidSearchF)
+            self.pmLossMidSearchF = tf.where(tf.is_nan(pmLossMidSearchF), 0., pmLossMidSearchF)
+
+
+            ## Calculate mid predicted BB distance from search GT BB and penalize if above threshold
+            midBBDistFromGT = tf.subtract(bboxGT, fc_output_mid)
+            midBBDistFromGT = tf.abs(midBBDistFromGT)
+            midBBDistFromGT = tf.where(tf.greater(midBBDistFromGT, 0.5), midBBDistFromGT, tf.zeros(midBBDistFromGT.shape, dtype=tf.float32))
+            midBBDistFromGT = tf.reduce_sum(midBBDistFromGT, axis=1)
+            self.midBBoxLoss = tf.reduce_mean(midBBDistFromGT, name="midBBoxLoss")
+            _variable_summaries(self.midBBoxLoss)
 
             ## Calculate bounding box regression loss
             bboxDist = tf.subtract(bboxGT, bboxPredSearch)
@@ -330,20 +282,16 @@ class TRACKNET:
             self.bboxLoss = tf.reduce_mean(bboxDist, name="bboxLoss")
             _variable_summaries(self.bboxLoss)
 
-            #self.regLoss = tf.add_n(tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES), name='regLoss')
-            #self.regLoss = tf.losses.get_regularization_loss()
-            #_variable_summaries(self.regLoss)
-            #self.loss = self.bboxLoss + self.pmLossTargetMid1 + self.pmLossMid1Mid2 + self.pmLossMid2Search
-            self.loss = self.bboxLoss + self.pmLossTargetMid1 + self.pmLossMid2Search
+            #self.loss = self.bboxLoss + self.midBBoxLoss + self.pmLossTargetMid + self.pmLossMidSearch + self.pmLossTargetMidF + self.pmLossMidSearchF
+            self.loss = self.bboxLoss + self.midBBoxLoss + (self.pmLossTargetMidF-1) + (self.pmLossMidSearchF-1)
 
             self.losses = {
                     'bboxLoss': self.bboxLoss,
-                    'pmLossTargetMid1': self.pmLossTargetMid1,
-                    #'pmLossMid1Mid2': self.pmLossMid1Mid2,
-                    'pmLossMid2Search': self.pmLossMid2Search
+                    'midBBoxLoss': self.midBBoxLoss,
+                    'pmLossTargetMidF': self.pmLossTargetMidF-1,
+                    'pmLossMidSearchF': self.pmLossMidSearchF-1
             }
 
 
-            #self.checks = {'bboxDist': bboxDist, 'motionDist': motionDist}
 
 

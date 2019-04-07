@@ -7,6 +7,7 @@ import glob
 import re
 import os
 import xml.etree.ElementTree as ET
+from creatTrainTestLists import creatLists
 #import ipdb
 
 
@@ -15,8 +16,8 @@ augShift = 1./5
 augScale = 1./15
 minScale = 0.6
 maxScale = 1.4
-k1 = 2
-k2 = 4
+k1 = 3
+k2 = 3
 k3 = 10
 
 alovData = "./data/alovData"
@@ -193,21 +194,15 @@ def alovDataExt():
                 annParseCurr = [int(float(number)) for number in framesAnn[frameAnnIndx].split()]
 
                 annFramesDiff = annParseCurr[0] - annParsePrev[0]
-                if annFramesDiff == 2:
-                    midRound = 1
-                    midDiffRound = 1
-                elif annFramesDiff == 3:
-                    midRound = 2
+                if annFramesDiff <= 3:
                     midDiffRound = 1
                 elif annFramesDiff > 3:
-                    midRound = annFramesDiff/2
-                    midDiffRound = midRound/2
+                    midDiffRound = annFramesDiff/2
                 else:
                     print "Not enough frames in between annotated frames! using augmentation on last frame to create the set..."
                     continue
 
-                frameMid1 = cv2.imread(frames[annParsePrev[0]-1+midDiffRound])
-                frameMid2 = cv2.imread(frames[annParsePrev[0]-1+midRound+midDiffRound])
+                frameMid = cv2.imread(frames[annParsePrev[0]-1+midDiffRound])
 
                 framePrev = cv2.imread(frames[annParsePrev[0]-1])
                 frameCurr = cv2.imread(frames[annParseCurr[0]-1])
@@ -239,18 +234,15 @@ def alovDataExt():
                         invalidAugCounter += 1
                         continue
                     frameCurrCropPads = frameCurr[startCropCurrY:endCropCurrY, startCropCurrX:endCropCurrX]
-                    frameMid1CropPads = frameMid1[startCropCurrY:endCropCurrY, startCropCurrX:endCropCurrX]
-                    frameMid2CropPads = frameMid2[startCropCurrY:endCropCurrY, startCropCurrX:endCropCurrX]
+                    frameMidCropPads = frameMid[startCropCurrY:endCropCurrY, startCropCurrX:endCropCurrX]
                     fileNameSearch = "{}/{}_curr_{}_{}".format(alovExtdataSearching, (frames[annParseCurr[0]-1].split("/"))[-2], annParseCurr[0], augIdx)
-                    fileNameMid1 = "{}/{}_mid1_{}_{}".format(alovExtdataSearching, (frames[annParsePrev[0]-1+midDiffRound].split("/"))[-2], annParsePrev[0]+midDiffRound, augIdx)
-                    fileNameMid2 = "{}/{}_mid2_{}_{}".format(alovExtdataSearching, (frames[annParsePrev[0]-1+midRound+midDiffRound].split("/"))[-2], annParsePrev[0]+midRound+midDiffRound, augIdx)
+                    fileNameMid = "{}/{}_mid_{}_{}".format(alovExtdataSearching, (frames[annParsePrev[0]-1+midDiffRound].split("/"))[-2], annParsePrev[0]+midDiffRound, augIdx)
                     cv2.imwrite(fileNameSearch + ".jpg", frameCurrCropPads)
-                    cv2.imwrite(fileNameMid1 + ".jpg", frameMid1CropPads)
-                    cv2.imwrite(fileNameMid2 + ".jpg", frameMid2CropPads)
+                    cv2.imwrite(fileNameMid + ".jpg", frameMidCropPads)
                     annFile = open(fileNameSearch + ".ann", "w")
                     annFile.write("{},{},{},{}".format(bbx1CurrCrop, bby1CurrCrop, bbx2CurrCrop, bby2CurrCrop))
                     annFile.close()
-                    alovTrainSet.write("{}.jpg,{}.jpg,{}.jpg,{}.jpg,{},{},{},{}\n".format(fileNameTarget, fileNameMid1, fileNameMid2, fileNameSearch, bbx1CurrCrop, bby1CurrCrop, bbx2CurrCrop, bby2CurrCrop))
+                    alovTrainSet.write("{}.jpg,{}.jpg,{}.jpg,{},{},{},{}\n".format(fileNameTarget, fileNameMid, fileNameSearch, bbx1CurrCrop, bby1CurrCrop, bbx2CurrCrop, bby2CurrCrop))
                     #cv2.rectangle(frameCurrCropPads, (bbx1CurrCrop,bby1CurrCrop), (bbx2CurrCrop,bby2CurrCrop), (0,255,0), 3)
                     #cv2.rectangle(frameCurr, (bbx1Curr,bby1Curr), (bbx2Curr,bby2Curr), (0,255,0), 3)
                     #viewer(frameCurrCropPads)
@@ -314,17 +306,8 @@ def imageNetDataExt():
                 print "Faild to augmented {}! Skipping next...".format(fileNameTarget)
                 #invalidAugCounter += 1
                 continue
-            frameMid1CropPads = framePrev[startCropCurrY:endCropCurrY, startCropCurrX:endCropCurrX]
-            fileNameMid1 = "{}/{}_mid1_{}".format(imageNetExtdataSearching, image.split("/")[-1][:-5], augIdx)
-
-            [bbx1CurrCrop, bby1CurrCrop, bbx2CurrCrop, bby2CurrCrop, startCropCurrY, endCropCurrY, startCropCurrX, endCropCurrX, bbx1New, bby1New, valid] = goturnAugmentation(augIdx, cxPrev,
-                    cyPrev, bbx1Prev, bby1Prev, bbx2Prev, bby2Prev, framePrev.shape[:2], bbx1Prev, bby1Prev, bbx2Prev, bby2Prev)
-            if not valid:
-                print "Faild to augmented {}! Skipping next...".format(fileNameTarget)
-                #invalidAugCounter += 1
-                continue
-            frameMid2CropPads = framePrev[startCropCurrY:endCropCurrY, startCropCurrX:endCropCurrX]
-            fileNameMid2 = "{}/{}_mid2_{}".format(imageNetExtdataSearching, image.split("/")[-1][:-5], augIdx)
+            frameMidCropPads = framePrev[startCropCurrY:endCropCurrY, startCropCurrX:endCropCurrX]
+            fileNameMid = "{}/{}_mid_{}".format(imageNetExtdataSearching, image.split("/")[-1][:-5], augIdx)
 
             [bbx1CurrCrop, bby1CurrCrop, bbx2CurrCrop, bby2CurrCrop, startCropCurrY, endCropCurrY, startCropCurrX, endCropCurrX, bbx1New, bby1New, valid] = goturnAugmentation(augIdx, cxPrev,
                     cyPrev, bbx1Prev, bby1Prev, bbx2Prev, bby2Prev, framePrev.shape[:2], bbx1Prev, bby1Prev, bbx2Prev, bby2Prev)
@@ -336,12 +319,11 @@ def imageNetDataExt():
             fileNameSearch = "{}/{}_curr_{}".format(imageNetExtdataSearching, image.split("/")[-1][:-5], augIdx)
 
             cv2.imwrite(fileNameSearch + ".jpg", frameCurrCropPads)
-            cv2.imwrite(fileNameMid1 + ".jpg", frameMid1CropPads)
-            cv2.imwrite(fileNameMid2 + ".jpg", frameMid2CropPads)
+            cv2.imwrite(fileNameMid + ".jpg", frameMidCropPads)
             annFile = open(fileNameSearch + ".ann", "w")
             annFile.write("{},{},{},{}".format(bbx1CurrCrop, bby1CurrCrop, bbx2CurrCrop, bby2CurrCrop))
             annFile.close()
-            imageNetTrainSet.write("{}.jpg,{}.jpg,{}.jpg,{}.jpg,{},{},{},{}\n".format(fileNameTarget, fileNameMid1, fileNameMid2, fileNameSearch, bbx1CurrCrop, bby1CurrCrop, bbx2CurrCrop, bby2CurrCrop))
+            imageNetTrainSet.write("{}.jpg,{}.jpg,{}.jpg,{},{},{},{}\n".format(fileNameTarget, fileNameMid, fileNameSearch, bbx1CurrCrop, bby1CurrCrop, bbx2CurrCrop, bby2CurrCrop))
             #cv2.rectangle(frameCurrCropPads, (bbx1CurrCrop,bby1CurrCrop), (bbx2CurrCrop,bby2CurrCrop), (0,255,0), 3)
             #viewer(frameCurrCropPads)
 
@@ -366,21 +348,18 @@ def votDataExt():
         framesAnn = [line.rstrip() for line in open(videoAnn).readlines()]
         frames = glob.glob(video + "/*.jpg")
         frames.sort()
-        if len(framesAnn) < 5:
-            print "video {} is shorter then 5 frames".format(video.split("/")[-1])
+        if len(framesAnn) < 3:
+            print "video {} is shorter then 3 frames".format(video.split("/")[-1])
             continue
-        for frameAnnIndx in xrange(4, len(framesAnn), 1):
-            annParsePrev = [int(float(number)) for number in framesAnn[frameAnnIndx-4].split(',')]
+        for frameAnnIndx in xrange(2, len(framesAnn), 1):
+            annParsePrev = [int(float(number)) for number in framesAnn[frameAnnIndx-2].split(',')]
             annParseCurr = [int(float(number)) for number in framesAnn[frameAnnIndx].split(',')]
 
-            frameMid1 = cv2.imread(frames[frameAnnIndx-3])
-            frameMid2 = cv2.imread(frames[frameAnnIndx-1])
-            annParseMid1 = [int(float(number)) for number in framesAnn[frameAnnIndx-3].split(',')]
-            annParseMid2 = [int(float(number)) for number in framesAnn[frameAnnIndx-1].split(',')]
-            [bbx1Mid1, bby1Mid1, bbx2Mid1, bby2Mid1] = extBBvot(annParseMid1)
-            [bbx1Mid2, bby1Mid2, bbx2Mid2, bby2Mid2] = extBBvot(annParseMid2)
+            frameMid = cv2.imread(frames[frameAnnIndx-1])
+            annParseMid = [int(float(number)) for number in framesAnn[frameAnnIndx-1].split(',')]
+            [bbx1Mid, bby1Mid, bbx2Mid, bby2Mid] = extBBvot(annParseMid)
 
-            framePrev = cv2.imread(frames[frameAnnIndx-4])
+            framePrev = cv2.imread(frames[frameAnnIndx-2])
             frameCurr = cv2.imread(frames[frameAnnIndx])
             [bbx1Prev, bby1Prev, bbx2Prev, bby2Prev] = extBBvot(annParsePrev)
             [bbx1Curr, bby1Curr, bbx2Curr, bby2Curr] = extBBvot(annParseCurr)
@@ -396,7 +375,7 @@ def votDataExt():
             endCropPrevX = framePrev.shape[1]-1 if cxPrev+bbPadsPrevW > framePrev.shape[1]-1 else cxPrev+bbPadsPrevW
 
             framePrevCropPads = framePrev[startCropPrevY:endCropPrevY, startCropPrevX:endCropPrevX]
-            fileNameTarget = "{}/{}_prev_{}".format(votExtdataTarget, video.split("/")[-1], frames[frameAnnIndx-4].split("/")[-1][:-4])
+            fileNameTarget = "{}/{}_prev_{}".format(votExtdataTarget, video.split("/")[-1], frames[frameAnnIndx-2].split("/")[-1][:-4])
             cv2.imwrite(fileNameTarget + ".jpg", framePrevCropPads)
 
             #viewer(framePrev)
@@ -411,33 +390,23 @@ def votDataExt():
                     continue
 
                 frameCurrCropPads = frameCurr[startCropCurrY:endCropCurrY, startCropCurrX:endCropCurrX]
-                frameMid1CropPads = frameMid1[startCropCurrY:endCropCurrY, startCropCurrX:endCropCurrX]
-                frameMid2CropPads = frameMid2[startCropCurrY:endCropCurrY, startCropCurrX:endCropCurrX]
+                frameMidCropPads = frameMid[startCropCurrY:endCropCurrY, startCropCurrX:endCropCurrX]
                 fileNameSearch = "{}/{}_curr_{}_{}".format(votExtdataSearching, video.split("/")[-1], frames[frameAnnIndx].split("/")[-1][:-4], augIdx)
-                fileNameMid1 = "{}/{}_mid1_{}_{}".format(votExtdataSearching, video.split("/")[-1], frames[frameAnnIndx-3].split("/")[-1][:-4], augIdx)
-                fileNameMid2 = "{}/{}_mid2_{}_{}".format(votExtdataSearching, video.split("/")[-1], frames[frameAnnIndx-1].split("/")[-1][:-4], augIdx)
+                fileNameMid = "{}/{}_mid_{}_{}".format(votExtdataSearching, video.split("/")[-1], frames[frameAnnIndx-1].split("/")[-1][:-4], augIdx)
                 cv2.imwrite(fileNameSearch + ".jpg", frameCurrCropPads)
-                cv2.imwrite(fileNameMid1 + ".jpg", frameMid1CropPads)
-                cv2.imwrite(fileNameMid2 + ".jpg", frameMid2CropPads)
+                cv2.imwrite(fileNameMid + ".jpg", frameMidCropPads)
                 annFile = open(fileNameSearch + ".ann", "w")
                 annFile.write("{},{},{},{}".format(bbx1CurrCrop, bby1CurrCrop, bbx2CurrCrop, bby2CurrCrop))
                 annFile.close()
-                annFile = open(fileNameMid1 + ".ann", "w")
-                bbx1Mid1Crop = 0 if bbx1Mid1-bbx1New < 0 else bbx1Mid1-bbx1New
-                bbx2Mid1Crop = 0 if bbx2Mid1-bbx1New < 0 else bbx2Mid1-bbx1New
-                bby1Mid1Crop = 0 if bby1Mid1-bby1New < 0 else bby1Mid1-bby1New
-                bby2Mid1Crop = 0 if bby2Mid1-bby1New < 0 else bby2Mid1-bby1New
-                annFile.write("{},{},{},{}".format(bbx1Mid1Crop, bby1Mid1Crop, bbx2Mid1Crop, bby2Mid1Crop))
+                annFile = open(fileNameMid + ".ann", "w")
+                bbx1MidCrop = 0 if bbx1Mid-bbx1New < 0 else bbx1Mid-bbx1New
+                bbx2MidCrop = 0 if bbx2Mid-bbx1New < 0 else bbx2Mid-bbx1New
+                bby1MidCrop = 0 if bby1Mid-bby1New < 0 else bby1Mid-bby1New
+                bby2MidCrop = 0 if bby2Mid-bby1New < 0 else bby2Mid-bby1New
+                annFile.write("{},{},{},{}".format(bbx1MidCrop, bby1MidCrop, bbx2MidCrop, bby2MidCrop))
                 annFile.close()
-                annFile = open(fileNameMid2 + ".ann", "w")
-                bbx1Mid2Crop = 0 if bbx1Mid2-bbx1New < 0 else bbx1Mid2-bbx1New
-                bbx2Mid2Crop = 0 if bbx2Mid2-bbx1New < 0 else bbx2Mid2-bbx1New
-                bby1Mid2Crop = 0 if bby1Mid2-bby1New < 0 else bby1Mid2-bby1New
-                bby2Mid2Crop = 0 if bby2Mid2-bby1New < 0 else bby2Mid2-bby1New
-                annFile.write("{},{},{},{}".format(bbx1Mid2Crop, bby1Mid2Crop, bbx2Mid2Crop, bby2Mid2Crop))
-                annFile.close()
-                votTestSet.write("{}.jpg,{}.jpg,{}.jpg,{}.jpg,{},{},{},{},{},{},{},{},{},{},{},{}\n".format(fileNameTarget, fileNameMid1, fileNameMid2, fileNameSearch, bbx1Mid1Crop, bby1Mid1Crop, bbx2Mid1Crop, bby2Mid1Crop,
-                    bbx1Mid2Crop, bby1Mid2Crop, bbx2Mid2Crop, bby2Mid2Crop, bbx1CurrCrop, bby1CurrCrop, bbx2CurrCrop, bby2CurrCrop))
+                votTestSet.write("{}.jpg,{}.jpg,{}.jpg,{},{},{},{},{},{},{},{}}\n".format(fileNameTarget, fileNameMid, fileNameSearch, bbx1MidCrop, bby1MidCrop, bbx2MidCrop, bby2MidCrop,
+                    bbx1CurrCrop, bby1CurrCrop, bbx2CurrCrop, bby2CurrCrop))
                 #cv2.rectangle(frameCurrCropPads, (bbx1CurrCrop,bby1CurrCrop), (bbx2CurrCrop,bby2CurrCrop), (0,255,0), 3)
                 #cv2.rectangle(frameCurr, (bbx1Curr,bby1Curr), (bbx2Curr,bby2Curr), (0,255,0), 3)
                 #viewer(frameCurrCropPads)
@@ -453,4 +422,5 @@ if __name__ == '__main__':
     alovDataExt()
     imageNetDataExt()
     votDataExt()
+    creatLists()
 

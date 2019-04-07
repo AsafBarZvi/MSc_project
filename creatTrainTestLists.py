@@ -4,53 +4,55 @@ import os
 import sys
 from random import shuffle
 
-alovTrainFileLines = [line.rstrip() for line in open("./alovTrainSet.txt").readlines()]
-imageNetTrainFileLines = [line.rstrip() for line in open("./imageNetTrainSet.txt").readlines()]
-shuffle(alovTrainFileLines)
-shuffle(imageNetTrainFileLines)
-trainSet = open("trainSet.txt", "w")
-maxTrainSetLenght = max(len(imageNetTrainFileLines), len(alovTrainFileLines))
-minTrainSetLenght = min(len(imageNetTrainFileLines), len(alovTrainFileLines))
-appearRatioForShortList = maxTrainSetLenght/(minTrainSetLenght*2)
-l = -1
-for i in range(maxTrainSetLenght):
+def creatLists():
 
-    if not i % appearRatioForShortList:
-        l += 1
-        idxForShortList = l % minTrainSetLenght
-        parseLineImageNet = imageNetTrainFileLines[idxForShortList].split(',') # TODO change list file to be generic
-        searchImageNet = cv2.imread(parseLineImageNet[3])
-        heightImageNet = searchImageNet.shape[0]
-        widhtImageNet = searchImageNet.shape[1]
-        # Write ImageNet
-        [bbx1, bby1, bbx2, bby2] = [float(parseLineImageNet[4])/widhtImageNet, float(parseLineImageNet[5])/heightImageNet, float(parseLineImageNet[6])/widhtImageNet, float(parseLineImageNet[7])/heightImageNet]
-        trainSet.write("{},{},{},{},{},{},{},{}\n".format(parseLineImageNet[0], parseLineImageNet[1], parseLineImageNet[2], parseLineImageNet[3], bbx1, bby1, bbx2, bby2))
+    imageNetTrainFileLines = [line.rstrip() for line in open("./imageNetTrainSet.txt").readlines()]
+    alovTrainFileLines = [line.rstrip() for line in open("./alovTrainSet.txt").readlines()]
+    trainLists = [imageNetTrainFileLines, alovTrainFileLines]
+    shuffle(imageNetTrainFileLines)
+    shuffle(alovTrainFileLines)
+    trainSet = open("trainSet.txt", "w")
+    maxTrainSetLenght = max(len(imageNetTrainFileLines), ylen(alovTrainFileLines))
+    minTrainSetLenght = min(len(imageNetTrainFileLines), len(alovTrainFileLines))
+    largerListIdx = 0 if len(imageNetTrainFileLines) > len(imageNetTrainFileLines) else 1
+    appearRatioForShortList = maxTrainSetLenght/(minTrainSetLenght*2)
+    l = -1
+    for i in range(maxTrainSetLenght):
 
-    parseLineAlov = alovTrainFileLines[i].split(',')
-    searchAlov = cv2.imread(parseLineAlov[3])
-    heightAlov = searchAlov.shape[0]
-    widhtAlov = searchAlov.shape[1]
-    # Write Alov
-    [bbx1, bby1, bbx2, bby2] = [float(parseLineAlov[4])/widhtAlov, float(parseLineAlov[5])/heightAlov, float(parseLineAlov[6])/widhtAlov, float(parseLineAlov[7])/heightAlov]
-    trainSet.write("{},{},{},{},{},{},{},{}\n".format(parseLineAlov[0], parseLineAlov[1], parseLineAlov[2], parseLineAlov[3], bbx1, bby1, bbx2, bby2))
+        # Write from short list
+        if not i % appearRatioForShortList:
+            l += 1
+            idxForShortList = l % minTrainSetLenght
+            parseLine = trainLists[1-largerListIdx][idxForShortList].split(',')
+            search = cv2.imread(parseLine[2])
+            height = search.shape[0]
+            width = search.shape[1]
+            [bbx1, bby1, bbx2, bby2] = [float(parseLine[3])/width, float(parseLine[4])/height, float(parseLine[5])/width, float(parseLine[6])/heightImageNet]
+            trainSet.write("{},{},{},{},{},{},{}\n".format(parseLine[0], parseLine[1], parseLine[2], bbx1, bby1, bbx2, bby2))
 
-trainSet.close()
+        # Write from large list
+        parseLine = trainLists[largerListIdx][i].split(',')
+        search = cv2.imread(parseLine[2])
+        height = search.shape[0]
+        width = search.shape[1]
+        [bbx1, bby1, bbx2, bby2] = [float(parseLine[3])/width, float(parseLine[4])/height, float(parseLine[5])/width, float(parseLine[6])/height]
+        trainSet.write("{},{},{},{},{},{},{}\n".format(parseLine[0], parseLine[1], parseLine[2], bbx1, bby1, bbx2, bby2))
 
-testFileLines = [line.rstrip() for line in open("./votTestSet.txt").readlines()]
-shuffle(testFileLines)
-testSet = open("testSet.txt", "w")
-for i in range(len(testFileLines)):
-    parseLine = testFileLines[i].split(',')
-    mid1Image = cv2.imread(parseLine[1])
-    mid2Image = cv2.imread(parseLine[2])
-    searchImage = cv2.imread(parseLine[3])
-    # Note: same augmentation for mid1 and mid2 as for search image, thus, using same width and height to scale 0-1
-    widht = searchImage.shape[1]
-    height = searchImage.shape[0]
-    # Write VOT
-    [bbx1M1, bby1M1, bbx2M1, bby2M1] = [float(parseLine[4])/widht, float(parseLine[5])/height, float(parseLine[6])/widht, float(parseLine[7])/height]
-    [bbx1M2, bby1M2, bbx2M2, bby2M2] = [float(parseLine[8])/widht, float(parseLine[9])/height, float(parseLine[10])/widht, float(parseLine[11])/height]
-    [bbx1S, bby1S, bbx2S, bby2S] = [float(parseLine[12])/widht, float(parseLine[13])/height, float(parseLine[14])/widht, float(parseLine[15])/height]
-    testSet.write("{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}\n".format(parseLine[0], parseLine[1], parseLine[2], parseLine[3], bbx1M1, bby1M1, bbx2M1, bby2M1, bbx1M2, bby1M2, bbx2M2, bby2M2, bbx1S, bby1S, bbx2S, bby2S))
+    trainSet.close()
 
-testSet.close()
+    testFileLines = [line.rstrip() for line in open("./votTestSet.txt").readlines()]
+    shuffle(testFileLines)
+    testSet = open("testSet.txt", "w")
+    for i in range(len(testFileLines)):
+        parseLine = testFileLines[i].split(',')
+        midImage = cv2.imread(parseLine[1])
+        searchImage = cv2.imread(parseLine[2])
+        # Note: same augmentation for mid as for search image, thus, using same width and height to scale 0-1
+        width = searchImage.shape[1]
+        height = searchImage.shape[0]
+        # Write VOT
+        [bbx1M, bby1M, bbx2M, bby2M] = [float(parseLine[4])/width, float(parseLine[5])/height, float(parseLine[6])/width, float(parseLine[7])/height]
+        [bbx1S, bby1S, bbx2S, bby2S] = [float(parseLine[8])/width, float(parseLine[9])/height, float(parseLine[10])/width, float(parseLine[11])/height]
+        testSet.write("{},{},{},{},{},{},{},{},{},{},{}\n".format(parseLine[0], parseLine[1], parseLine[2], bbx1M, bby1M, bbx2M, bby2M, bbx1S, bby1S, bbx2S, bby2S))
+
+    testSet.close()

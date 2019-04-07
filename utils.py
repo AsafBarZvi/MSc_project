@@ -192,20 +192,27 @@ class ImageSummary:
         imgs = np.zeros((5, 227, 227*4, 3))
         for i, sample in enumerate(samples):
             imgTarget = sample[0]
-            imgMid1 = sample[1]
-            imgMid2 = sample[2]
-            imgSearch = sample[3]
-            imgSearchGT = np.copy(imgSearch)
+            imgMid = sample[1]
+            imgSearch = sample[2]
+            imgMidPred = np.copy(imgMid)
+            imgMidGT = np.copy(imgMid)
+            draw_box(imgMidPred, sample[3], [255,255,0])
             imgSearchPred = np.copy(imgSearch)
-            draw_box(imgMid1, sample[4], [255,255,0])
-            draw_box(imgMid2, sample[5], [255,255,0])
-            draw_box(imgSearchPred, sample[6], [255,0,0])
-            draw_box(imgSearchGT, sample[7], [0,255,0])
+            imgSearchGT = np.copy(imgSearch)
+            draw_box(imgSearchPred, sample[4], [255,0,0])
+            if len(sample[5]) > 4:
+                draw_box(imgMidGT, sample[5][:4], [0,255,0])
+                draw_box(imgSearchGT, sample[5][4:], [0,255,0])
+            else:
+                draw_box(imgMidGT, sample[3], [255,255,0])
+                draw_box(imgSearchGT, sample[5], [0,255,0])
+
             #img[img>255] = 255
             #img[img<0] = 0
             alpha = 0.3
             cv2.addWeighted(imgSearchGT, alpha, imgSearchPred, 1.-alpha, 0, imgSearch)
-            imgTrack = np.concatenate((imgTarget, imgMid1, imgMid2, imgSearch), axis=1)
+            cv2.addWeighted(imgMidGT, alpha, imgMidPred, 1.-alpha, 0, imgMid)
+            imgTrack = np.concatenate((imgTarget, imgMid, imgSearch), axis=1)
 
             imgs[i] = imgTrack.astype(np.uint8)
 
