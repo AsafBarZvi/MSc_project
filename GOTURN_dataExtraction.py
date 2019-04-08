@@ -405,7 +405,7 @@ def votDataExt():
                 bby2MidCrop = 0 if bby2Mid-bby1New < 0 else bby2Mid-bby1New
                 annFile.write("{},{},{},{}".format(bbx1MidCrop, bby1MidCrop, bbx2MidCrop, bby2MidCrop))
                 annFile.close()
-                votTestSet.write("{}.jpg,{}.jpg,{}.jpg,{},{},{},{},{},{},{},{}}\n".format(fileNameTarget, fileNameMid, fileNameSearch, bbx1MidCrop, bby1MidCrop, bbx2MidCrop, bby2MidCrop,
+                votTestSet.write("{}.jpg,{}.jpg,{}.jpg,{},{},{},{},{},{},{},{}\n".format(fileNameTarget, fileNameMid, fileNameSearch, bbx1MidCrop, bby1MidCrop, bbx2MidCrop, bby2MidCrop,
                     bbx1CurrCrop, bby1CurrCrop, bbx2CurrCrop, bby2CurrCrop))
                 #cv2.rectangle(frameCurrCropPads, (bbx1CurrCrop,bby1CurrCrop), (bbx2CurrCrop,bby2CurrCrop), (0,255,0), 3)
                 #cv2.rectangle(frameCurr, (bbx1Curr,bby1Curr), (bbx2Curr,bby2Curr), (0,255,0), 3)
@@ -419,8 +419,8 @@ def votDataExt():
 
 if __name__ == '__main__':
 
-    alovDataExt()
-    imageNetDataExt()
-    votDataExt()
+    #alovDataExt()
+    #imageNetDataExt()
+    #votDataExt()
     creatLists()
 

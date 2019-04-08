@@ -12,7 +12,7 @@ def creatLists():
     shuffle(imageNetTrainFileLines)
     shuffle(alovTrainFileLines)
     trainSet = open("trainSet.txt", "w")
-    maxTrainSetLenght = max(len(imageNetTrainFileLines), ylen(alovTrainFileLines))
+    maxTrainSetLenght = max(len(imageNetTrainFileLines), len(alovTrainFileLines))
     minTrainSetLenght = min(len(imageNetTrainFileLines), len(alovTrainFileLines))
     largerListIdx = 0 if len(imageNetTrainFileLines) > len(imageNetTrainFileLines) else 1
     appearRatioForShortList = maxTrainSetLenght/(minTrainSetLenght*2)
@@ -27,7 +27,7 @@ def creatLists():
             search = cv2.imread(parseLine[2])
             height = search.shape[0]
             width = search.shape[1]
-            [bbx1, bby1, bbx2, bby2] = [float(parseLine[3])/width, float(parseLine[4])/height, float(parseLine[5])/width, float(parseLine[6])/heightImageNet]
+            [bbx1, bby1, bbx2, bby2] = [float(parseLine[3])/width, float(parseLine[4])/height, float(parseLine[5])/width, float(parseLine[6])/height]
             trainSet.write("{},{},{},{},{},{},{}\n".format(parseLine[0], parseLine[1], parseLine[2], bbx1, bby1, bbx2, bby2))
 
         # Write from large list
@@ -51,8 +51,8 @@ def creatLists():
         width = searchImage.shape[1]
         height = searchImage.shape[0]
         # Write VOT
-        [bbx1M, bby1M, bbx2M, bby2M] = [float(parseLine[4])/width, float(parseLine[5])/height, float(parseLine[6])/width, float(parseLine[7])/height]
-        [bbx1S, bby1S, bbx2S, bby2S] = [float(parseLine[8])/width, float(parseLine[9])/height, float(parseLine[10])/width, float(parseLine[11])/height]
+        [bbx1M, bby1M, bbx2M, bby2M] = [float(parseLine[3])/width, float(parseLine[4])/height, float(parseLine[5])/width, float(parseLine[6])/height]
+        [bbx1S, bby1S, bbx2S, bby2S] = [float(parseLine[7])/width, float(parseLine[8])/height, float(parseLine[9])/width, float(parseLine[10])/height]
         testSet.write("{},{},{},{},{},{},{},{},{},{},{}\n".format(parseLine[0], parseLine[1], parseLine[2], bbx1M, bby1M, bbx2M, bby2M, bbx1S, bby1S, bbx2S, bby2S))
 
     testSet.close()
