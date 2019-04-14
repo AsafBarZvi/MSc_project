@@ -12,7 +12,7 @@ default_config = {
     "logdir"            : "logs",                       #tensorboard log dir
     "summary_interval"  : 1000,                         #num of interval to dump summary
     "val_interval"      : 15000,                        #num of interval to run validation
-    "lr_values"         : "0.00005;0.000005;0.0000005", #lr step values
+    "lr_values"         : "0.00005;0.00001;0.000005",   #lr step values
     "lr_boundaries"     : "16;19",                      #epochs to jump between lr values
     "momentum"          : 0.9,                          #momentum
     "continue_training" : False,                        #resume training from latest checkpoint

@@ -36,9 +36,9 @@ class DataPrep:
                 #box = [10 * float(line[2]), 10 * float(line[3]), 10 * float(line[4]), 10 * float(line[5])]
                 # Normalized 0-1 bounding box GT (xmin,ymin,xmax,ymax) + Normalized motion GT (avgX in search to center(0.5) in target, avgY in search to center(0.5) in target)
                 if test:
-                    box = [float(line[4]), float(line[5]), float(line[6]), float(line[7]), float(line[8]), float(line[9]), float(line[10]), float(line[11])]
+                    box = [float(line[3]), float(line[4]), float(line[5]), float(line[6]), float(line[7]), float(line[8]), float(line[9]), float(line[10])]
                 else:
-                    box = [float(line[4]), float(line[5]), float(line[6]), float(line[7])]#, ((float(line[2])+float(line[4]))/2.)-0.5, ((float(line[3])+float(line[5]))/2.)-0.5]
+                    box = [float(line[3]), float(line[4]), float(line[5]), float(line[6])]#, ((float(line[2])+float(line[4]))/2.)-0.5, ((float(line[3])+float(line[5]))/2.)-0.5]
 
                 bbox.append(box)
 
@@ -55,14 +55,11 @@ class DataPrep:
             mid_img = tf.read_file(input_queue[1])
             search_img = tf.read_file(input_queue[2])
             target_tensor = tf.to_float(tf.image.decode_jpeg(target_img, channels=3))
-            target_tensor = tf.image.resize_images(target_tensor, [227, 227],
-                                                   method=tf.image.ResizeMethod.BILINEAR)
-            mid1_tensor = tf.to_float(tf.image.decode_jpeg(mid_img, channels=3))
-            mid1_tensor = tf.image.resize_images(mid1_tensor, [227, 227],
-                                                   method=tf.image.ResizeMethod.BILINEAR)
+            target_tensor = tf.image.resize_images(target_tensor, [227, 227], method=tf.image.ResizeMethod.BILINEAR)
+            mid_tensor = tf.to_float(tf.image.decode_jpeg(mid_img, channels=3))
+            mid_tensor = tf.image.resize_images(mid_tensor, [227, 227], method=tf.image.ResizeMethod.BILINEAR)
             search_tensor = tf.to_float(tf.image.decode_jpeg(search_img, channels=3))
-            search_tensor = tf.image.resize_images(search_tensor, [227, 227],
-                                                   method=tf.image.ResizeMethod.BILINEAR)
+            search_tensor = tf.image.resize_images(search_tensor, [227, 227], method=tf.image.ResizeMethod.BILINEAR)
             box_tensor = input_queue[3]
             return [target_tensor, mid_tensor, search_tensor, box_tensor]
 

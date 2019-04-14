@@ -189,7 +189,7 @@ class ImageSummary:
 
     #---------------------------------------------------------------------------
     def push(self, epoch, samples):
-        imgs = np.zeros((5, 227, 227*4, 3))
+        imgs = np.zeros((5, 227, 227*3, 3))
         for i, sample in enumerate(samples):
             imgTarget = sample[0]
             imgMid = sample[1]
