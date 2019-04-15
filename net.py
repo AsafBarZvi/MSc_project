@@ -80,6 +80,7 @@ class TRACKNET:
                 outData = tf.concat([redu, info], axis=-1)
             else:
                 inData = tf.image.resize_images(inData, redu.shape[1:3])
+                inData = tf.layers.conv2d(inData, outChannel, 1, 1, name=layerName+'_skip_redu', reuse=False, activation=tf.nn.elu, padding='same', kernel_regularizer=self.wreg, bias_regularizer=self.breg)
                 outData = tf.concat([redu, inData], axis=-1)
             return outData
 
@@ -90,11 +91,12 @@ class TRACKNET:
             x = self.target
             x = resUnit(x, 16, 3, 'targetResUnit1')
             x = resUnit(x, 32, 3, 'targetResUnit2')
-            self.targetF = x
             x = resUnit(x, 64, 3, 'targetResUnit3')
+            self.targetF = x
             x = resUnit(x,128, 3, 'targetResUnit4')
             x = resUnit(x,256, 3, 'targetResUnit5')
-            self.conv_output_target = tf.layers.conv2d(x , 64 , 1 , 1 , name='conv6redu_target' , reuse=False, activation=tf.nn.elu , padding='same' , kernel_regularizer=self.wreg , bias_regularizer=self.breg)
+            x = resUnit(x, 64, 3, 'targetResUnit6')
+            self.conv_output_target = x
             _activation_summary(self.conv_output_target)
 
         ########### for mid ###########
@@ -103,11 +105,12 @@ class TRACKNET:
             x = self.mid
             x = resUnit(x, 16, 3, 'midResUnit1')
             x = resUnit(x, 32, 3, 'midResUnit2')
-            self.midF = x
             x = resUnit(x, 64, 3, 'midResUnit3')
+            self.midF = x
             x = resUnit(x,128, 3, 'midResUnit4')
             x = resUnit(x,256, 3, 'midResUnit5')
-            self.conv_output_mid = tf.layers.conv2d(x , 64 , 1 , 1 , name='conv6redu_mid' , reuse=False, activation=tf.nn.elu , padding='same' , kernel_regularizer=self.wreg , bias_regularizer=self.breg)
+            x = resUnit(x, 64, 3, 'midResUnit6')
+            self.conv_output_mid = x
             _activation_summary(self.conv_output_mid)
 
         ########### for search ###########
@@ -116,23 +119,28 @@ class TRACKNET:
             x = self.search
             x = resUnit(x, 16, 3, 'searchResUnit1')
             x = resUnit(x, 32, 3, 'searchResUnit2')
-            self.searchF = x
             x = resUnit(x, 64, 3, 'searchResUnit3')
+            self.searchF = x
             x = resUnit(x,128, 3, 'searchResUnit4')
             x = resUnit(x,256, 3, 'searchResUnit5')
-            self.conv_output_search = tf.layers.conv2d(x , 64 , 1 , 1 , name='conv6redu_search' , reuse=False, activation=tf.nn.elu , padding='same' , kernel_regularizer=self.wreg , bias_regularizer=self.breg)
+            x = resUnit(x, 64, 3, 'searchResUnit6')
+            self.conv_output_search = x
             _activation_summary(self.conv_output_search)
 
         ########### Concatnate all nets ###########
         ########### fully connencted layers ###########
         with tf.variable_scope("fc_nets"):
 
-            # now three features map, each 6 x 6 x 64
+            # now three features map, each 3 x 3 x 128
             concat = tf.concat([self.conv_output_target, self.conv_output_mid, self.conv_output_search], axis = 3)
 
             x = tf.layers.flatten(concat)
 
-            x = tf.layers.dense(x, 512, name='fc1', activation=tf.nn.elu, kernel_regularizer=self.wreg , bias_regularizer=self.breg)
+            x = tf.layers.dense(x, 4096, name='fc1', activation=tf.nn.elu, kernel_regularizer=self.wreg , bias_regularizer=self.breg)
+            _activation_summary(x)
+            x = tf.layers.dense(x, 4096, name='fc2', activation=tf.nn.elu, kernel_regularizer=self.wreg , bias_regularizer=self.breg)
+            _activation_summary(x)
+            x = tf.layers.dense(x, 2048, name='fc3', activation=tf.nn.elu, kernel_regularizer=self.wreg , bias_regularizer=self.breg)
             _activation_summary(x)
             self.fc_output = tf.layers.dense(x, 8, name='fc_out', activation=None, kernel_regularizer=self.wreg , bias_regularizer=self.breg)
 
@@ -263,36 +271,36 @@ class TRACKNET:
 
                 if imType == 'image':
                     pmLossTargetMid = (1 - tf.reduce_mean(((targetPM-meanTarget)/stdTarget)*((midPM_target-meanMid_target)/stdMid_target))) / 2
-                    _variable_summaries(pmLossTargetMid)
                     self.pmLossTargetMid = tf.where(tf.is_nan(pmLossTargetMid), 0., pmLossTargetMid, name="pmNccLossTargetMid")
+                    _variable_summaries(self.pmLossTargetMid)
 
                     pmLossMidSearch = (1 - tf.reduce_mean(((searchPM-meanSearch)/stdSearch)*((midPM_search-meanMid_search)/stdMid_search))) / 2
-                    _variable_summaries(pmLossMidSearch)
                     self.pmLossMidSearch = tf.where(tf.is_nan(pmLossMidSearch), 0., pmLossMidSearch, name="pmNccLossMidSearch")
+                    _variable_summaries(self.pmLossMidSearch)
 
                     pmLossTargetSearchBound = (1 - tf.reduce_mean(((targetPM-meanTarget)/stdTarget)*((searchPM-meanSearch)/stdSearch))) / 2
-                    _variable_summaries(pmLossTargetSearchBound)
                     self.pmLossTargetSearchBound = tf.where(tf.is_nan(pmLossTargetSearchBound), 0., pmLossTargetSearchBound, name="pmLossTargetSearchBound")
+                    _variable_summaries(self.pmLossTargetSearchBound)
 
                     pmLossTargetSearch = tf.minimum(pmLossTargetSearchBound, (1 - tf.reduce_mean(((targetPM-meanTarget)/stdTarget)*((searchPM_target-meanSearch_target)/stdSearch_target))) / 2)
-                    _variable_summaries(pmLossTargetSearch)
                     self.pmLossTargetSearch = tf.where(tf.is_nan(pmLossTargetSearch), 0., pmLossTargetSearch, name="pmNccLossTargetSearch")
+                    _variable_summaries(self.pmLossTargetSearch)
                 else:
                     pmLossTargetMidF = (1 - tf.reduce_mean(((targetPM-meanTarget)/stdTarget)*((midPM_target-meanMid_target)/stdMid_target))) / 2
-                    _variable_summaries(pmLossTargetMidF)
                     self.pmLossTargetMidF = tf.where(tf.is_nan(pmLossTargetMidF), 0., pmLossTargetMidF, name="pmNccLossTargetMidF")
+                    _variable_summaries(self.pmLossTargetMidF)
 
                     pmLossMidSearchF = (1 - tf.reduce_mean(((searchPM-meanSearch)/stdSearch)*((midPM_search-meanMid_search)/stdMid_search))) / 2
-                    _variable_summaries(pmLossMidSearchF)
                     self.pmLossMidSearchF = tf.where(tf.is_nan(pmLossMidSearchF), 0., pmLossMidSearchF, name="pmNccLossMidSearchF")
+                    _variable_summaries(self.pmLossMidSearchF)
 
                     pmLossTargetSearchBoundF = (1 - tf.reduce_mean(((targetPM-meanTarget)/stdTarget)*((searchPM-meanSearch)/stdSearch))) / 2
-                    _variable_summaries(pmLossTargetSearchBoundF)
                     self.pmLossTargetSearchBoundF = tf.where(tf.is_nan(pmLossTargetSearchBoundF), 0., pmLossTargetSearchBoundF, name="pmLossTargetSearchBoundF")
+                    _variable_summaries(self.pmLossTargetSearchBoundF)
 
                     pmLossTargetSearchF = tf.minimum(pmLossTargetSearchBoundF, (1 - tf.reduce_mean(((targetPM-meanTarget)/stdTarget)*((searchPM_target-meanSearch_target)/stdSearch_target))) / 2)
-                    _variable_summaries(pmLossTargetSearchF)
                     self.pmLossTargetSearchF = tf.where(tf.is_nan(pmLossTargetSearchF), 0., pmLossTargetSearchF, name="pmNccLossTargetSearchF")
+                    _variable_summaries(self.pmLossTargetSearchF)
 
 
             ## Calculate mid predicted BB distance from search GT BB and penalize if above threshold - half the image size
@@ -323,7 +331,7 @@ class TRACKNET:
             self.bboxLoss = tf.reduce_mean(bboxDist, name="bboxLoss")
             _variable_summaries(self.bboxLoss)
 
-            self.loss = self.bboxLoss + 2*self.midBBoxLoss + 2*self.diffLoss + self.pmLossTargetMid + self.pmLossMidSearch + self.pmLossTargetSearch + \
+            self.loss = self.bboxLoss + self.midBBoxLoss + self.diffLoss + self.pmLossTargetMid + self.pmLossMidSearch + self.pmLossTargetSearch + \
                     self.pmLossTargetMidF + self.pmLossMidSearchF + self.pmLossTargetSearchF
 
             self.losses = {
