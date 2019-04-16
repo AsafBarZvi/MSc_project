@@ -225,7 +225,7 @@ def main():
 
                 iteraton = int(tf.train.global_step(sess, global_step))
 
-                if not iteraton % 100:
+                if not iteraton % 500:
                     print "\n{}".format(checks)
                     print res['bbox_mid'][0,:]
                     print res['bbox_search'][0,:]

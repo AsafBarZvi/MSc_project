@@ -11,12 +11,12 @@ default_config = {
     "epochs"            : 20,                           #number of epoches
     "logdir"            : "logs",                       #tensorboard log dir
     "summary_interval"  : 1000,                         #num of interval to dump summary
-    "val_interval"      : 15000,                        #num of interval to run validation
-    "lr_values"         : "0.00005;0.00001;0.000005",   #lr step values
+    "val_interval"      : 10000,                        #num of interval to run validation
+    "lr_values"         : "0.00001;0.000005;0.000001",  #lr step values
     "lr_boundaries"     : "16;19",                      #epochs to jump between lr values
     "momentum"          : 0.9,                          #momentum
-    "continue_training" : False,                        #resume training from latest checkpoint
-    "checkpoint_file"   : None,                         #resume from specific ckpt file
+    "continue_training" : True,                         #resume training from latest checkpoint
+    "checkpoint_file"   : './snaps/semSupervisedTracking_3_images_upgraded_loss_upgraded_arch/5_7235.ckpt',                         #resume from specific ckpt file
     "max_snapshots_keep": 15,                           #max snaps to keep 0 means all
     "output_dir"        : "infer_out"                   #detections images output path
 

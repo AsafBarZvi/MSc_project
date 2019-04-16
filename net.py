@@ -94,6 +94,7 @@ class TRACKNET:
             x = resUnit(x, 64, 3, 'targetResUnit3')
             self.targetF = x
             x = resUnit(x,128, 3, 'targetResUnit4')
+            self.conv_output_target_up = resUnit(x, 32, 3, 'targetResUnit5_up')
             x = resUnit(x,256, 3, 'targetResUnit5')
             x = resUnit(x, 64, 3, 'targetResUnit6')
             self.conv_output_target = x
@@ -108,6 +109,7 @@ class TRACKNET:
             x = resUnit(x, 64, 3, 'midResUnit3')
             self.midF = x
             x = resUnit(x,128, 3, 'midResUnit4')
+            self.conv_output_mid_up = resUnit(x, 32, 3, 'midResUnit5_up')
             x = resUnit(x,256, 3, 'midResUnit5')
             x = resUnit(x, 64, 3, 'midResUnit6')
             self.conv_output_mid = x
@@ -122,6 +124,7 @@ class TRACKNET:
             x = resUnit(x, 64, 3, 'searchResUnit3')
             self.searchF = x
             x = resUnit(x,128, 3, 'searchResUnit4')
+            self.conv_output_search_up = resUnit(x, 32, 3, 'searchResUnit5_up')
             x = resUnit(x,256, 3, 'searchResUnit5')
             x = resUnit(x, 64, 3, 'searchResUnit6')
             self.conv_output_search = x
@@ -131,16 +134,15 @@ class TRACKNET:
         ########### fully connencted layers ###########
         with tf.variable_scope("fc_nets"):
 
-            # now three features map, each 3 x 3 x 128
-            concat = tf.concat([self.conv_output_target, self.conv_output_mid, self.conv_output_search], axis = 3)
+            # now three features maps, each 3 x 3 x 128 + three upper features maps, each 27 x 27 x 128
+            concatLow = tf.concat([self.conv_output_target, self.conv_output_mid, self.conv_output_search], axis = 3)
+            concatUp = tf.concat([self.conv_output_target_up, self.conv_output_mid_up, self.conv_output_search_up], axis = 3)
 
-            x = tf.layers.flatten(concat)
+            flatLow = tf.layers.flatten(concatLow)
+            flatUp = tf.layers.flatten(concatUp)
+            x = tf.concat([flatLow, flatUp], axis = -1)
 
-            x = tf.layers.dense(x, 4096, name='fc1', activation=tf.nn.elu, kernel_regularizer=self.wreg , bias_regularizer=self.breg)
-            _activation_summary(x)
-            x = tf.layers.dense(x, 4096, name='fc2', activation=tf.nn.elu, kernel_regularizer=self.wreg , bias_regularizer=self.breg)
-            _activation_summary(x)
-            x = tf.layers.dense(x, 2048, name='fc3', activation=tf.nn.elu, kernel_regularizer=self.wreg , bias_regularizer=self.breg)
+            x = tf.layers.dense(x, 1024, name='fc1', activation=tf.nn.elu, kernel_regularizer=self.wreg , bias_regularizer=self.breg)
             _activation_summary(x)
             self.fc_output = tf.layers.dense(x, 8, name='fc_out', activation=None, kernel_regularizer=self.wreg , bias_regularizer=self.breg)
 
@@ -157,10 +159,19 @@ class TRACKNET:
 
             fc_output_mid = self.fc_output[:,:4]
             fc_output_search = self.fc_output[:,4:]
+            bboxGT = self.bbox
+
+            ## Scaling all bounding boxes for the PM loss - target BBox is 1/3 of the patch size --> make it 1/5 of the patch size, thus 1/3 to 2/5 is 1.2, and 2/3 to 3/5 is 0.9
+            t = tf.ones([self.batch_size, 2], dtype=tf.bool)
+            f = tf.zeros([self.batch_size, 2], dtype=tf.bool)
+            boxScaleMask = tf.concat([t, f], axis=1)
+            fc_output_mid_scale = tf.where(boxScaleMask , fc_output_mid*1.2, fc_output_mid*0.9)
+            fc_output_search_scale = tf.where(boxScaleMask , fc_output_search*1.2, fc_output_search*0.9)
+            bboxGT_scale = tf.where(boxScaleMask , bboxGT*1.2, bboxGT*0.9)
+
             badBBmid = 0
             badBBsearch = 0
             badBBsearchGT = 0 # Sanity
-            bboxGT = self.bbox
 
             for imType in ['image', ' feature']:
 
@@ -175,22 +186,22 @@ class TRACKNET:
 
                 ## Extract the target object
                 targetPM = target
-                targetPM = targetPM[:, targetPM.shape[1]*1/3:targetPM.shape[1]*2/3, targetPM.shape[2]*1/3:targetPM.shape[2]*2/3, :]
+                targetPM = targetPM[:, targetPM.shape[1]*2/5:targetPM.shape[1]*3/5, targetPM.shape[2]*2/5:targetPM.shape[2]*3/5, :]
 
-                def f1(batchIdx, img): return tf.abs(img[batchIdx, img.shape[1]*1/3:img.shape[1]*2/3, img.shape[2]*1/3:img.shape[2]*2/3, :]-256)
+                def f1(batchIdx, img): return tf.abs(img[batchIdx, img.shape[1]*2/5:img.shape[1]*3/5, img.shape[2]*2/5:img.shape[2]*3/5, :]-256)
                 def f2(img): return tf.image.resize_images(img, [int(targetPM.shape[1]),int(targetPM.shape[2])])
 
                 # Extract mid-target object prediction for the PM loss
                 midF = mid
-                midPM_target = midF[0,tf.cast(int(midF.shape[1])*fc_output_mid[0,1], tf.int32):tf.cast(int(midF.shape[1])*fc_output_mid[0,3], tf.int32),
-                        tf.cast(int(midF.shape[2])*fc_output_mid[0,0], tf.int32):tf.cast(int(midF.shape[2])*fc_output_mid[0,2], tf.int32), :]
+                midPM_target = midF[0,tf.cast(int(midF.shape[1])*fc_output_mid_scale[0,1], tf.int32):tf.cast(int(midF.shape[1])*fc_output_mid_scale[0,3], tf.int32),
+                        tf.cast(int(midF.shape[2])*fc_output_mid_scale[0,0], tf.int32):tf.cast(int(midF.shape[2])*fc_output_mid_scale[0,2], tf.int32), :]
                 if imType == 'image':
                     badBBmid = tf.cond(tf.equal(tf.size(midPM_target), 0), lambda: tf.add(badBBmid, 1), lambda: badBBmid, name="badBBmid")
                 midPM_target = tf.cond(tf.equal(tf.size(midPM_target), 0), lambda: f1(0, midF), lambda: f2(midPM_target))
                 midPM_target = tf.expand_dims(midPM_target, 0)
                 for i in range(1, self.batch_size):
-                    midF_cropNscale = midF[i,tf.cast(int(midF.shape[1])*fc_output_mid[i,1], tf.int32):tf.cast(int(midF.shape[1])*fc_output_mid[i,3], tf.int32),
-                            tf.cast(int(midF.shape[2])*fc_output_mid[i,0], tf.int32):tf.cast(int(midF.shape[2])*fc_output_mid[i,2], tf.int32), :]
+                    midF_cropNscale = midF[i,tf.cast(int(midF.shape[1])*fc_output_mid_scale[i,1], tf.int32):tf.cast(int(midF.shape[1])*fc_output_mid_scale[i,3], tf.int32),
+                            tf.cast(int(midF.shape[2])*fc_output_mid_scale[i,0], tf.int32):tf.cast(int(midF.shape[2])*fc_output_mid_scale[i,2], tf.int32), :]
                     if imType == 'image':
                         badBBmid = tf.cond(tf.equal(tf.size(midF_cropNscale), 0), lambda: tf.add(badBBmid, 1), lambda: badBBmid, name="badBBmid")
                     midF_cropNscale = tf.cond(tf.equal(tf.size(midF_cropNscale), 0), lambda: f1(i, midF), lambda: f2(midF_cropNscale))
@@ -199,15 +210,15 @@ class TRACKNET:
 
                 # Extract search-target object prediction for the PM loss
                 searchF = search
-                searchPM_target = searchF[0,tf.cast(int(searchF.shape[1])*fc_output_search[0,1], tf.int32):tf.cast(int(searchF.shape[1])*fc_output_search[0,3], tf.int32),
-                        tf.cast(int(searchF.shape[2])*fc_output_search[0,0], tf.int32):tf.cast(int(searchF.shape[2])*fc_output_search[0,2], tf.int32), :]
+                searchPM_target = searchF[0,tf.cast(int(searchF.shape[1])*fc_output_search_scale[0,1], tf.int32):tf.cast(int(searchF.shape[1])*fc_output_search_scale[0,3], tf.int32),
+                        tf.cast(int(searchF.shape[2])*fc_output_search_scale[0,0], tf.int32):tf.cast(int(searchF.shape[2])*fc_output_search_scale[0,2], tf.int32), :]
                 if imType == 'image':
                     badBBsearch = tf.cond(tf.equal(tf.size(searchPM_target), 0), lambda: tf.add(badBBsearch, 1), lambda: badBBsearch, name="badBBsearch")
                 searchPM_target = tf.cond(tf.equal(tf.size(searchPM_target), 0), lambda: f1(0, searchF), lambda: f2(searchPM_target))
                 searchPM_target = tf.expand_dims(searchPM_target, 0)
                 for i in range(1, self.batch_size):
-                    searchF_cropNscale = searchF[i,tf.cast(int(searchF.shape[1])*fc_output_search[i,1], tf.int32):tf.cast(int(searchF.shape[1])*fc_output_search[i,3], tf.int32),
-                            tf.cast(int(searchF.shape[2])*fc_output_search[i,0], tf.int32):tf.cast(int(searchF.shape[2])*fc_output_search[i,2], tf.int32), :]
+                    searchF_cropNscale = searchF[i,tf.cast(int(searchF.shape[1])*fc_output_search_scale[i,1], tf.int32):tf.cast(int(searchF.shape[1])*fc_output_search_scale[i,3], tf.int32),
+                            tf.cast(int(searchF.shape[2])*fc_output_search_scale[i,0], tf.int32):tf.cast(int(searchF.shape[2])*fc_output_search_scale[i,2], tf.int32), :]
                     if imType == 'image':
                         badBBsearch = tf.cond(tf.equal(tf.size(searchF_cropNscale), 0), lambda: tf.add(badBBsearch, 1), lambda: badBBsearch, name="badBBsearch")
                     searchF_cropNscale = tf.cond(tf.equal(tf.size(searchF_cropNscale), 0), lambda: f1(i, searchF), lambda: f2(searchF_cropNscale))
@@ -215,15 +226,15 @@ class TRACKNET:
                     searchPM_target = tf.concat([searchPM_target, searchF_cropNscale], axis=0)
 
                 # Extract search object GT for the PM loss
-                searchPM = searchF[0,tf.cast(int(searchF.shape[1])*bboxGT[0,1], tf.int32):tf.cast(int(searchF.shape[1])*bboxGT[0,3], tf.int32),
-                        tf.cast(int(searchF.shape[2])*bboxGT[0,0], tf.int32):tf.cast(int(searchF.shape[2])*bboxGT[0,2], tf.int32), :]
+                searchPM = searchF[0,tf.cast(int(searchF.shape[1])*bboxGT_scale[0,1], tf.int32):tf.cast(int(searchF.shape[1])*bboxGT_scale[0,3], tf.int32),
+                        tf.cast(int(searchF.shape[2])*bboxGT_scale[0,0], tf.int32):tf.cast(int(searchF.shape[2])*bboxGT_scale[0,2], tf.int32), :]
                 if imType == 'image':
                     badBBsearchGT = tf.cond(tf.equal(tf.size(searchPM), 0), lambda: tf.add(badBBsearchGT, 1), lambda: badBBsearchGT, name="badBBsearchGT")
                 searchPM = tf.cond(tf.equal(tf.size(searchPM), 0), lambda: f1(0, searchF), lambda: f2(searchPM))
                 searchPM = tf.expand_dims(searchPM, 0)
                 for i in range(1, self.batch_size):
-                    searchF_cropNscale = searchF[i,tf.cast(int(searchF.shape[1])*bboxGT[i,1], tf.int32):tf.cast(int(searchF.shape[1])*bboxGT[i,3], tf.int32),
-                            tf.cast(int(searchF.shape[2])*bboxGT[i,0], tf.int32):tf.cast(int(searchF.shape[2])*bboxGT[i,2], tf.int32), :]
+                    searchF_cropNscale = searchF[i,tf.cast(int(searchF.shape[1])*bboxGT_scale[i,1], tf.int32):tf.cast(int(searchF.shape[1])*bboxGT_scale[i,3], tf.int32),
+                            tf.cast(int(searchF.shape[2])*bboxGT_scale[i,0], tf.int32):tf.cast(int(searchF.shape[2])*bboxGT_scale[i,2], tf.int32), :]
                     if imType == 'image':
                         badBBsearchGT = tf.cond(tf.equal(tf.size(searchF_cropNscale), 0), lambda: tf.add(badBBsearchGT, 1), lambda: badBBsearchGT, name="badBBsearchGT")
                     searchF_cropNscale = tf.cond(tf.equal(tf.size(searchF_cropNscale), 0), lambda: f1(i, searchF), lambda: f2(searchF_cropNscale))
@@ -231,13 +242,13 @@ class TRACKNET:
                     searchPM = tf.concat([searchPM, searchF_cropNscale], axis=0)
 
                 # Extract mid-search object prediction for the PM loss
-                midPM_search = midF[0,tf.cast(int(midF.shape[1])*fc_output_mid[0,1], tf.int32):tf.cast(int(midF.shape[1])*fc_output_mid[0,3], tf.int32),
-                        tf.cast(int(midF.shape[2])*fc_output_mid[0,0], tf.int32):tf.cast(int(midF.shape[2])*fc_output_mid[0,2], tf.int32), :]
+                midPM_search = midF[0,tf.cast(int(midF.shape[1])*fc_output_mid_scale[0,1], tf.int32):tf.cast(int(midF.shape[1])*fc_output_mid_scale[0,3], tf.int32),
+                        tf.cast(int(midF.shape[2])*fc_output_mid_scale[0,0], tf.int32):tf.cast(int(midF.shape[2])*fc_output_mid_scale[0,2], tf.int32), :]
                 midPM_search = tf.cond(tf.equal(tf.size(midPM_search), 0), lambda: f1(0, midF), lambda: f2(midPM_search))
                 midPM_search = tf.expand_dims(midPM_search, 0)
                 for i in range(1, self.batch_size):
-                    midF_cropNscale = midF[i,tf.cast(int(midF.shape[1])*fc_output_mid[i,1], tf.int32):tf.cast(int(midF.shape[1])*fc_output_mid[i,3], tf.int32),
-                            tf.cast(int(midF.shape[2])*fc_output_mid[i,0], tf.int32):tf.cast(int(midF.shape[2])*fc_output_mid[i,2], tf.int32), :]
+                    midF_cropNscale = midF[i,tf.cast(int(midF.shape[1])*fc_output_mid_scale[i,1], tf.int32):tf.cast(int(midF.shape[1])*fc_output_mid_scale[i,3], tf.int32),
+                            tf.cast(int(midF.shape[2])*fc_output_mid_scale[i,0], tf.int32):tf.cast(int(midF.shape[2])*fc_output_mid_scale[i,2], tf.int32), :]
                     midF_cropNscale = tf.cond(tf.equal(tf.size(midF_cropNscale), 0), lambda: f1(i, midF), lambda: f2(midF_cropNscale))
                     midF_cropNscale = tf.expand_dims(midF_cropNscale, 0)
                     midPM_search = tf.concat([midPM_search,midF_cropNscale], axis=0)
@@ -282,7 +293,8 @@ class TRACKNET:
                     self.pmLossTargetSearchBound = tf.where(tf.is_nan(pmLossTargetSearchBound), 0., pmLossTargetSearchBound, name="pmLossTargetSearchBound")
                     _variable_summaries(self.pmLossTargetSearchBound)
 
-                    pmLossTargetSearch = tf.minimum(pmLossTargetSearchBound, (1 - tf.reduce_mean(((targetPM-meanTarget)/stdTarget)*((searchPM_target-meanSearch_target)/stdSearch_target))) / 2)
+                    pmLossTargetSearch = ((1 - tf.reduce_mean(((targetPM-meanTarget)/stdTarget)*((searchPM_target-meanSearch_target)/stdSearch_target))) / 2) - pmLossTargetSearchBound
+                    pmLossTargetSearch = tf.maximum(0, pmLossTargetSearch)
                     self.pmLossTargetSearch = tf.where(tf.is_nan(pmLossTargetSearch), 0., pmLossTargetSearch, name="pmNccLossTargetSearch")
                     _variable_summaries(self.pmLossTargetSearch)
                 else:
@@ -298,7 +310,8 @@ class TRACKNET:
                     self.pmLossTargetSearchBoundF = tf.where(tf.is_nan(pmLossTargetSearchBoundF), 0., pmLossTargetSearchBoundF, name="pmLossTargetSearchBoundF")
                     _variable_summaries(self.pmLossTargetSearchBoundF)
 
-                    pmLossTargetSearchF = tf.minimum(pmLossTargetSearchBoundF, (1 - tf.reduce_mean(((targetPM-meanTarget)/stdTarget)*((searchPM_target-meanSearch_target)/stdSearch_target))) / 2)
+                    pmLossTargetSearchF = ((1 - tf.reduce_mean(((targetPM-meanTarget)/stdTarget)*((searchPM_target-meanSearch_target)/stdSearch_target))) / 2) - pmLossTargetSearchBoundF
+                    pmLossTargetSearchF = tf.maximum(0, pmLossTargetSearchF)
                     self.pmLossTargetSearchF = tf.where(tf.is_nan(pmLossTargetSearchF), 0., pmLossTargetSearchF, name="pmNccLossTargetSearchF")
                     _variable_summaries(self.pmLossTargetSearchF)
 
@@ -312,10 +325,10 @@ class TRACKNET:
             _variable_summaries(self.midBBoxLoss)
 
             ## Bound the predicted box dimensions
-            widthBoxMid = fc_output_mid[:,2] - fc_output_mid[:,0]
-            heightBoxMid = fc_output_mid[:,3] - fc_output_mid[:,1]
-            avgTargetSearchWidth = ((1/3) + (bboxGT[:,2] - bboxGT[:,0])) / 2
-            avgTargetSearchHeight = ((1/3) + (bboxGT[:,3] - bboxGT[:,1])) / 2
+            widthBoxMid = tf.abs(fc_output_mid[:,2] - fc_output_mid[:,0])
+            heightBoxMid = tf.abs(fc_output_mid[:,3] - fc_output_mid[:,1])
+            avgTargetSearchWidth = ((0.333) + tf.abs(bboxGT[:,2] - bboxGT[:,0])) / 2
+            avgTargetSearchHeight = ((0.333) + tf.abs(bboxGT[:,3] - bboxGT[:,1])) / 2
             widthDiff = tf.abs(widthBoxMid - avgTargetSearchWidth)
             heightDiff = tf.abs(heightBoxMid - avgTargetSearchHeight)
             widthDiffLoss = tf.where(tf.greater(widthDiff, 0.2), widthDiff, tf.zeros(widthDiff.shape, dtype=tf.float32))
