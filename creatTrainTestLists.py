@@ -11,7 +11,7 @@ def creatLists():
     trainLists = [imageNetTrainFileLines, alovTrainFileLines]
     shuffle(imageNetTrainFileLines)
     shuffle(alovTrainFileLines)
-    trainSet = open("trainSet.txt", "w")
+    trainSet = open("trainSetNew.txt", "w")
     maxTrainSetLenght = max(len(imageNetTrainFileLines), len(alovTrainFileLines))
     minTrainSetLenght = min(len(imageNetTrainFileLines), len(alovTrainFileLines))
     largerListIdx = 0 if len(imageNetTrainFileLines) > len(imageNetTrainFileLines) else 1
@@ -42,7 +42,7 @@ def creatLists():
 
     testFileLines = [line.rstrip() for line in open("./votTestSet.txt").readlines()]
     shuffle(testFileLines)
-    testSet = open("testSet.txt", "w")
+    testSet = open("testSetNew.txt", "w")
     for i in range(len(testFileLines)):
         parseLine = testFileLines[i].split(',')
         midImage = cv2.imread(parseLine[1])

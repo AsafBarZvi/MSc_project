@@ -16,7 +16,7 @@ default_config = {
     "lr_boundaries"     : "16;19",                      #epochs to jump between lr values
     "momentum"          : 0.9,                          #momentum
     "continue_training" : True,                         #resume training from latest checkpoint
-    "checkpoint_file"   : './snaps/semSupervisedTracking_3_images_upgraded_loss_upgraded_arch/5_7235.ckpt',                         #resume from specific ckpt file
+    "checkpoint_file"   : './snaps/semSupervisedTracking_3_images_upgraded_loss_upgraded_arch_cont/13_1707.ckpt',                         #resume from specific ckpt file
     "max_snapshots_keep": 15,                           #max snaps to keep 0 means all
     "output_dir"        : "infer_out"                   #detections images output path
 

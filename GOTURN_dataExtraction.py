@@ -16,8 +16,8 @@ augShift = 1./5
 augScale = 1./15
 minScale = 0.6
 maxScale = 1.4
-k1 = 3
-k2 = 3
+k1 = 1
+k2 = 4
 k3 = 10
 
 alovData = "./data/alovData"
@@ -26,7 +26,7 @@ imageNetData = "./data/imageNetData"
 imageNetDataGT = "./data/imageNetDataGT"
 votData = "./data/votTestData"
 
-alovExtdata = "./data/alovExtData"
+alovExtdata = "./dataNew/alovExtData"
 if not os.path.exists(alovExtdata):
     os.mkdir(alovExtdata)
 
@@ -38,7 +38,7 @@ alovExtdataSearching = alovExtdata + "/searching"
 if not os.path.exists(alovExtdataSearching):
     os.mkdir(alovExtdataSearching)
 
-imageNetExtdata = "./data/imageNetExtData"
+imageNetExtdata = "./dataNew/imageNetExtData"
 if not os.path.exists(imageNetExtdata):
     os.mkdir(imageNetExtdata)
 
@@ -50,7 +50,7 @@ imageNetExtdataSearching = imageNetExtdata + "/searching"
 if not os.path.exists(imageNetExtdataSearching):
     os.mkdir(imageNetExtdataSearching)
 
-votExtdata = "./data/votExtData"
+votExtdata = "./dataNew/votExtData"
 if not os.path.exists(votExtdata):
     os.mkdir(votExtdata)
 
@@ -220,6 +220,20 @@ def alovDataExt():
                 endCropPrevX = framePrev.shape[1]-1 if cxPrev+bbPadsPrevW > framePrev.shape[1]-1 else cxPrev+bbPadsPrevW
 
                 framePrevCropPads = framePrev[startCropPrevY:endCropPrevY, startCropPrevX:endCropPrevX]
+                if endCropPrevY - startCropPrevY < 2*bbPadsPrevH:
+                    zPads = np.zeros(((2*bbPadsPrevH)-(endCropPrevY-startCropPrevY), framePrevCropPads.shape[1], 3), dtype=np.uint8)
+                    if startCropPrevY == 0:
+                        framePrevCropPads = np.concatenate((zPads, framePrevCropPads), axis=0)
+                    else:
+                        framePrevCropPads = np.concatenate((framePrevCropPads, zPads), axis=0)
+
+                if endCropPrevX - startCropPrevX < 2*bbPadsPrevW:
+                    zPads = np.zeros((framePrevCropPads.shape[0], (2*bbPadsPrevW)-(endCropPrevX-startCropPrevX), 3), dtype=np.uint8)
+                    if startCropPrevX == 0:
+                        framePrevCropPads = np.concatenate((zPads, framePrevCropPads), axis=1)
+                    else:
+                        framePrevCropPads = np.concatenate((framePrevCropPads, zPads), axis=1)
+
                 fileNameTarget = "{}/{}_prev_{}".format(alovExtdataTarget, (frames[annParsePrev[0]-1].split("/"))[-2], annParsePrev[0])
                 cv2.imwrite(fileNameTarget + ".jpg", framePrevCropPads)
 
@@ -419,8 +433,8 @@ def votDataExt():
 
 if __name__ == '__main__':
 
-    #alovDataExt()
-    #imageNetDataExt()
-    #votDataExt()
+    alovDataExt()
+    imageNetDataExt()
+    votDataExt()
     creatLists()
 

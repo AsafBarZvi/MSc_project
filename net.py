@@ -63,9 +63,9 @@ class TRACKNET:
     #-----------------------------------------------------------------------
     def build(self):
 
-        self.target = tf.placeholder(tf.float32, [self.batch_size, 227, 227, 3])
-        self.mid = tf.placeholder(tf.float32, [self.batch_size, 227, 227, 3])
-        self.search = tf.placeholder(tf.float32, [self.batch_size, 227, 227, 3])
+        self.target = tf.placeholder(tf.float32, [self.batch_size, 100, 100, 3])
+        self.mid = tf.placeholder(tf.float32, [self.batch_size, 400, 400, 3])
+        self.search = tf.placeholder(tf.float32, [self.batch_size, 400, 400, 3])
         self.bbox= tf.placeholder(tf.float32, [self.batch_size, 4])
 
         def resUnit(inData, outChannel, kerSize, layerName):
@@ -91,12 +91,10 @@ class TRACKNET:
             x = self.target
             x = resUnit(x, 16, 3, 'targetResUnit1')
             x = resUnit(x, 32, 3, 'targetResUnit2')
-            x = resUnit(x, 64, 3, 'targetResUnit3')
             self.targetF = x
+            self.conv_output_target_up = x
+            x = resUnit(x, 64, 3, 'targetResUnit3')
             x = resUnit(x,128, 3, 'targetResUnit4')
-            self.conv_output_target_up = resUnit(x, 32, 3, 'targetResUnit5_up')
-            x = resUnit(x,256, 3, 'targetResUnit5')
-            x = resUnit(x, 64, 3, 'targetResUnit6')
             self.conv_output_target = x
             _activation_summary(self.conv_output_target)
 
@@ -107,11 +105,11 @@ class TRACKNET:
             x = resUnit(x, 16, 3, 'midResUnit1')
             x = resUnit(x, 32, 3, 'midResUnit2')
             x = resUnit(x, 64, 3, 'midResUnit3')
-            self.midF = x
-            x = resUnit(x,128, 3, 'midResUnit4')
             self.conv_output_mid_up = resUnit(x, 32, 3, 'midResUnit5_up')
+            x = resUnit(x,128, 3, 'midResUnit4')
+            self.midF = x
             x = resUnit(x,256, 3, 'midResUnit5')
-            x = resUnit(x, 64, 3, 'midResUnit6')
+            x = resUnit(x,128, 3, 'midResUnit6')
             self.conv_output_mid = x
             _activation_summary(self.conv_output_mid)
 
@@ -122,11 +120,11 @@ class TRACKNET:
             x = resUnit(x, 16, 3, 'searchResUnit1')
             x = resUnit(x, 32, 3, 'searchResUnit2')
             x = resUnit(x, 64, 3, 'searchResUnit3')
-            self.searchF = x
-            x = resUnit(x,128, 3, 'searchResUnit4')
             self.conv_output_search_up = resUnit(x, 32, 3, 'searchResUnit5_up')
+            x = resUnit(x,128, 3, 'searchResUnit4')
+            self.searchF = x
             x = resUnit(x,256, 3, 'searchResUnit5')
-            x = resUnit(x, 64, 3, 'searchResUnit6')
+            x = resUnit(x,128, 3, 'searchResUnit6')
             self.conv_output_search = x
             _activation_summary(self.conv_output_search)
 
@@ -134,7 +132,7 @@ class TRACKNET:
         ########### fully connencted layers ###########
         with tf.variable_scope("fc_nets"):
 
-            # now three features maps, each 3 x 3 x 128 + three upper features maps, each 27 x 27 x 128
+            # now three features maps, each 6 x 6 x 256 + three upper features maps, each 25 x 25 x 64
             concatLow = tf.concat([self.conv_output_target, self.conv_output_mid, self.conv_output_search], axis = 3)
             concatUp = tf.concat([self.conv_output_target_up, self.conv_output_mid_up, self.conv_output_search_up], axis = 3)
 
@@ -186,9 +184,9 @@ class TRACKNET:
 
                 ## Extract the target object
                 targetPM = target
-                targetPM = targetPM[:, targetPM.shape[1]*2/5:targetPM.shape[1]*3/5, targetPM.shape[2]*2/5:targetPM.shape[2]*3/5, :]
+                targetPM = targetPM[:, targetPM.shape[1]:targetPM.shape[1], targetPM.shape[2]:targetPM.shape[2], :]
 
-                def f1(batchIdx, img): return tf.abs(img[batchIdx, img.shape[1]*2/5:img.shape[1]*3/5, img.shape[2]*2/5:img.shape[2]*3/5, :]-256)
+                def f1(batchIdx, img): return tf.abs(img[batchIdx, img.shape[1]*3/8:img.shape[1]*5/8, img.shape[2]*3/8:img.shape[2]*5/8, :]-256)
                 def f2(img): return tf.image.resize_images(img, [int(targetPM.shape[1]),int(targetPM.shape[2])])
 
                 # Extract mid-target object prediction for the PM loss
@@ -294,7 +292,7 @@ class TRACKNET:
                     _variable_summaries(self.pmLossTargetSearchBound)
 
                     pmLossTargetSearch = ((1 - tf.reduce_mean(((targetPM-meanTarget)/stdTarget)*((searchPM_target-meanSearch_target)/stdSearch_target))) / 2) - pmLossTargetSearchBound
-                    pmLossTargetSearch = tf.maximum(0, pmLossTargetSearch)
+                    pmLossTargetSearch = tf.maximum(0., pmLossTargetSearch)
                     self.pmLossTargetSearch = tf.where(tf.is_nan(pmLossTargetSearch), 0., pmLossTargetSearch, name="pmNccLossTargetSearch")
                     _variable_summaries(self.pmLossTargetSearch)
                 else:
@@ -311,7 +309,7 @@ class TRACKNET:
                     _variable_summaries(self.pmLossTargetSearchBoundF)
 
                     pmLossTargetSearchF = ((1 - tf.reduce_mean(((targetPM-meanTarget)/stdTarget)*((searchPM_target-meanSearch_target)/stdSearch_target))) / 2) - pmLossTargetSearchBoundF
-                    pmLossTargetSearchF = tf.maximum(0, pmLossTargetSearchF)
+                    pmLossTargetSearchF = tf.maximum(0., pmLossTargetSearchF)
                     self.pmLossTargetSearchF = tf.where(tf.is_nan(pmLossTargetSearchF), 0., pmLossTargetSearchF, name="pmNccLossTargetSearchF")
                     _variable_summaries(self.pmLossTargetSearchF)
 
