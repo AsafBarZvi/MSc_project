@@ -274,7 +274,7 @@ def main():
                     [loss, res] = sess.run([tracknet.loss, tracknet.result], feed_dict={tracknet.target: cur_batch[0],
                                                                                         tracknet.mid: cur_batch[1],
                                                                                         tracknet.search: cur_batch[2],
-                                                                                        tracknet.bbox: cur_batch[3][:,:4]})
+                                                                                        tracknet.bbox: cur_batch[3][:,4:]})
 
                     validation_loss.add(loss)
 
@@ -296,7 +296,7 @@ def main():
                 summary = sess.run(merged_summary,feed_dict={tracknet.target: cur_batch[0],
                                                              tracknet.mid: cur_batch[1],
                                                              tracknet.search: cur_batch[2],
-                                                             tracknet.bbox: cur_batch[3][:,:4]})
+                                                             tracknet.bbox: cur_batch[3][:,4:]})
 
                 summary_writer.add_summary(summary, iteraton)
 
