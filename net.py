@@ -89,12 +89,13 @@ class TRACKNET:
         with tf.variable_scope("net_target"):
 
             x = self.target
-            x = resUnit(x,  8, 3, 'targetResUnit1')
-            x = resUnit(x, 16, 3, 'targetResUnit2')
+            x = resUnit(x, 16, 3, 'targetResUnit1')
+            x = resUnit(x, 32, 3, 'targetResUnit2')
+            self.conv_output_target_up = resUnit(x, 32, 3, 'targetResUnit3_up')
+            x = resUnit(x, 64, 3, 'targetResUnit3')
             self.targetF = x
-            self.conv_output_target_up = x
-            x = resUnit(x, 32, 3, 'targetResUnit3')
-            x = resUnit(x, 64, 3, 'targetResUnit4')
+            x = resUnit(x,128, 3, 'targetResUnit4')
+            x = resUnit(x, 64, 3, 'targetResUnit5')
             self.conv_output_target = x
             _activation_summary(self.conv_output_target)
 
@@ -102,14 +103,15 @@ class TRACKNET:
         with tf.variable_scope("net_mid"):
 
             x = self.mid
-            x = resUnit(x,  8, 3, 'midResUnit1')
-            x = resUnit(x, 16, 3, 'midResUnit2')
+            x = resUnit(x, 16, 3, 'midResUnit1')
+            x = resUnit(x, 32, 3, 'midResUnit2')
+            x = resUnit(x, 64, 3, 'midResUnit3')
             self.midF = x
-            x = resUnit(x, 32, 3, 'midResUnit3')
-            self.conv_output_mid_up = resUnit(x, 16, 3, 'midResUnit5_up')
-            x = resUnit(x, 64, 3, 'midResUnit4')
-            x = resUnit(x,128, 3, 'midResUnit5')
-            x = resUnit(x, 64, 3, 'midResUnit6')
+            x = resUnit(x,128, 3, 'midResUnit4')
+            self.conv_output_mid_up = resUnit(x, 32, 3, 'midResUnit5_up')
+            x = resUnit(x,256, 3, 'midResUnit5')
+            x = resUnit(x,128, 3, 'midResUnit6')
+            x = resUnit(x, 64, 3, 'midResUnit7')
             self.conv_output_mid = x
             _activation_summary(self.conv_output_mid)
 
@@ -117,14 +119,15 @@ class TRACKNET:
         with tf.variable_scope("net_search"):
 
             x = self.search
-            x = resUnit(x,  8, 3, 'searchResUnit1')
-            x = resUnit(x, 16, 3, 'searchResUnit2')
+            x = resUnit(x, 16, 3, 'searchResUnit1')
+            x = resUnit(x, 32, 3, 'searchResUnit2')
+            x = resUnit(x, 64, 3, 'searchResUnit3')
             self.searchF = x
-            x = resUnit(x, 32, 3, 'searchResUnit3')
-            self.conv_output_search_up = resUnit(x, 16, 3, 'searchResUnit5_up')
-            x = resUnit(x, 64, 3, 'searchResUnit4')
-            x = resUnit(x,128, 3, 'searchResUnit5')
-            x = resUnit(x, 64, 3, 'searchResUnit6')
+            x = resUnit(x,128, 3, 'searchResUnit4')
+            self.conv_output_search_up = resUnit(x, 32, 3, 'searchResUnit5_up')
+            x = resUnit(x,256, 3, 'searchResUnit5')
+            x = resUnit(x,128, 3, 'searchResUnit6')
+            x = resUnit(x, 64, 3, 'searchResUnit7')
             self.conv_output_search = x
             _activation_summary(self.conv_output_search)
 
@@ -132,7 +135,7 @@ class TRACKNET:
         ########### fully connencted layers ###########
         with tf.variable_scope("fc_nets"):
 
-            # now three features maps, each 6 x 6 x 128 + three upper features maps, each 25 x 25 x 32
+            # now three features maps, each 3 x 3 x 128 + three upper features maps, each 13 x 13 x 64
             concatLow = tf.concat([self.conv_output_target, self.conv_output_mid, self.conv_output_search], axis = 3)
             concatUp = tf.concat([self.conv_output_target_up, self.conv_output_mid_up, self.conv_output_search_up], axis = 3)
 
@@ -140,7 +143,7 @@ class TRACKNET:
             flatUp = tf.layers.flatten(concatUp)
             x = tf.concat([flatLow, flatUp], axis = -1)
 
-            x = tf.layers.dense(x, 512, name='fc1', activation=tf.nn.elu, kernel_regularizer=self.wreg , bias_regularizer=self.breg)
+            x = tf.layers.dense(x, 1024, name='fc1', activation=tf.nn.elu, kernel_regularizer=self.wreg , bias_regularizer=self.breg)
             _activation_summary(x)
             self.fc_output = tf.layers.dense(x, 8, name='fc_out', activation=None, kernel_regularizer=self.wreg , bias_regularizer=self.breg)
 
