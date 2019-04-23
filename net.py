@@ -177,7 +177,7 @@ class TRACKNET:
             badBBsearch = 0
             badBBsearchGT = 0 # Sanity
 
-            for imType in ['image', ' feature']:
+            for imType in ['image']:#, ' feature']:
 
                 if imType == 'image':
                     target = self.target
@@ -289,20 +289,20 @@ class TRACKNET:
                     self.pmLossTargetSearchBound = tf.where(tf.is_nan(pmLossTargetSearchBound), 0., pmLossTargetSearchBound, name="pmLossTargetSearchBound")
                     _variable_summaries(self.pmLossTargetSearchBound)
 
-                    pmLossTargetMid = ((1 - tf.reduce_mean(((targetPM-meanTarget)/stdTarget)*((midPM_target-meanMid_target)/stdMid_target))) / 2)
+                    pmLossTargetMid = ((1 - tf.reduce_mean(((targetPM-meanTarget)/stdTarget)*((midPM_target-meanMid_target)/stdMid_target))) / 2) - pmLossTargetSearchBound
                     pmLossTargetMid = tf.maximum(0., pmLossTargetMid)
                     self.pmLossTargetMid = tf.where(tf.is_nan(pmLossTargetMid), 0., pmLossTargetMid, name="pmNccLossTargetMid")
                     _variable_summaries(self.pmLossTargetMid)
 
-                    pmLossMidSearch = ((1 - tf.reduce_mean(((searchPM-meanSearch)/stdSearch)*((midPM_search-meanMid_search)/stdMid_search))) / 2)
+                    pmLossMidSearch = ((1 - tf.reduce_mean(((searchPM-meanSearch)/stdSearch)*((midPM_search-meanMid_search)/stdMid_search))) / 2) - pmLossTargetSearchBound
                     pmLossMidSearch = tf.maximum(0., pmLossMidSearch)
                     self.pmLossMidSearch = tf.where(tf.is_nan(pmLossMidSearch), 0., pmLossMidSearch, name="pmNccLossMidSearch")
                     _variable_summaries(self.pmLossMidSearch)
 
-                    pmLossTargetSearch = ((1 - tf.reduce_mean(((targetPM-meanTarget)/stdTarget)*((searchPM_target-meanSearch_target)/stdSearch_target))) / 2) - pmLossTargetSearchBound
-                    pmLossTargetSearch = tf.maximum(0., pmLossTargetSearch)
-                    self.pmLossTargetSearch = tf.where(tf.is_nan(pmLossTargetSearch), 0., pmLossTargetSearch, name="pmNccLossTargetSearch")
-                    _variable_summaries(self.pmLossTargetSearch)
+                    #pmLossTargetSearch = ((1 - tf.reduce_mean(((targetPM-meanTarget)/stdTarget)*((searchPM_target-meanSearch_target)/stdSearch_target))) / 2) - pmLossTargetSearchBound
+                    #pmLossTargetSearch = tf.maximum(0., pmLossTargetSearch)
+                    #self.pmLossTargetSearch = tf.where(tf.is_nan(pmLossTargetSearch), 0., pmLossTargetSearch, name="pmNccLossTargetSearch")
+                    #_variable_summaries(self.pmLossTargetSearch)
                 else:
                     pmLossTargetSearchBoundF = (1 - tf.reduce_mean(((targetPM-meanTarget)/stdTarget)*((searchPM-meanSearch)/stdSearch))) / 2
                     self.pmLossTargetSearchBoundF = tf.where(tf.is_nan(pmLossTargetSearchBoundF), 0., pmLossTargetSearchBoundF, name="pmLossTargetSearchBoundF")
@@ -352,19 +352,19 @@ class TRACKNET:
             self.bboxLoss = tf.reduce_mean(bboxDist, name="bboxLoss")
             _variable_summaries(self.bboxLoss)
 
-            self.loss = self.bboxLoss + self.midBBoxLoss + self.diffLoss + 2*self.pmLossTargetMid + 2*self.pmLossMidSearch + 2*self.pmLossTargetSearch + \
-                    2*self.pmLossTargetMidF + 2*self.pmLossMidSearchF + 2*self.pmLossTargetSearchF
+
+            self.loss = self.bboxLoss + self.midBBoxLoss + self.diffLoss + self.pmLossTargetMid + self.pmLossMidSearch
 
             self.losses = {
                     'bboxLoss': self.bboxLoss,
                     'midBBoxLoss': self.midBBoxLoss,
                     'diffLoss': self.diffLoss,
                     'pmLossTargetMid': self.pmLossTargetMid,
-                    'pmLossMidSearch': self.pmLossMidSearch,
-                    'pmLossTargetSearch': self.pmLossTargetSearch,
-                    'pmLossTargetMidF': self.pmLossTargetMidF,
-                    'pmLossMidSearchF': self.pmLossMidSearchF,
-                    'pmLossTargetSearchF': self.pmLossTargetSearchF
+                    'pmLossMidSearch': self.pmLossMidSearch
+                    #'pmLossTargetSearch': self.pmLossTargetSearch,
+                    #'pmLossTargetMidF': self.pmLossTargetMidF,
+                    #'pmLossMidSearchF': self.pmLossMidSearchF,
+                    #'pmLossTargetSearchF': self.pmLossTargetSearchF
             }
 
 
