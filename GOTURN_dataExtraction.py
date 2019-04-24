@@ -20,13 +20,17 @@ k1 = 1
 k2 = 4
 k3 = 10
 
+dataExtDir = "./dataExt_scheme2"
+if not os.path.exists(dataExtDir):
+    os.mkdir(dataExtDir)
+
 alovData = "./data/alovData"
 alovDataGT = "./data/alovDataGT"
 imageNetData = "./data/imageNetData"
 imageNetDataGT = "./data/imageNetDataGT"
 votData = "./data/votTestData"
 
-alovExtdata = "./dataNew/alovExtData"
+alovExtdata = dataExtDir + "/alovExtData"
 if not os.path.exists(alovExtdata):
     os.mkdir(alovExtdata)
 
@@ -38,7 +42,7 @@ alovExtdataSearching = alovExtdata + "/searching"
 if not os.path.exists(alovExtdataSearching):
     os.mkdir(alovExtdataSearching)
 
-imageNetExtdata = "./dataNew/imageNetExtData"
+imageNetExtdata = dataExtDir + "/imageNetExtData"
 if not os.path.exists(imageNetExtdata):
     os.mkdir(imageNetExtdata)
 
@@ -50,7 +54,7 @@ imageNetExtdataSearching = imageNetExtdata + "/searching"
 if not os.path.exists(imageNetExtdataSearching):
     os.mkdir(imageNetExtdataSearching)
 
-votExtdata = "./dataNew/votExtData"
+votExtdata = dataExtDir + "/votExtData"
 if not os.path.exists(votExtdata):
     os.mkdir(votExtdata)
 
@@ -172,7 +176,7 @@ def alovDataExt():
     # Extract Alov data
     print "Extracting Alov data..."
 
-    alovTrainSet = open("alovTrainSet.txt", "w")
+    alovTrainSet = open(dataExtDir + "/alovTrainSet.txt", "w")
 
     categories = glob.glob(alovData + "/*")
     for category in categories:
@@ -272,7 +276,7 @@ def imageNetDataExt():
     # Extract ImageNet data
     print "Extracting ImageNet data..."
 
-    imageNetTrainSet = open("imageNetTrainSet.txt", "w")
+    imageNetTrainSet = open(dataExtDir + "/imageNetTrainSet.txt", "w")
 
     images = glob.glob(imageNetData + "/*/" + "/*")
     imagesGT = glob.glob(imageNetDataGT + "/*/" + "/*")
@@ -313,7 +317,7 @@ def imageNetDataExt():
         #cv2.rectangle(framePrev, (bbx1Prev,bby1Prev), (bbx2Prev,bby2Prev), (0,255,0), 3)
         #viewer(framePrevCropPads)
         invalidAugCounter = 0
-        for augIdx in range(1,2):
+        for augIdx in range(k3):
             [bbx1CurrCrop, bby1CurrCrop, bbx2CurrCrop, bby2CurrCrop, startCropCurrY, endCropCurrY, startCropCurrX, endCropCurrX, bbx1New, bby1New, valid] = goturnAugmentation(augIdx, cxPrev,
                     cyPrev, bbx1Prev, bby1Prev, bbx2Prev, bby2Prev, framePrev.shape[:2], bbx1Prev, bby1Prev, bbx2Prev, bby2Prev)
             if not valid:
@@ -351,7 +355,7 @@ def votDataExt():
     # Extract vot data
     print "Extracting VOT data..."
 
-    votTestSet = open("votTestSet.txt", "w")
+    votTestSet = open(dataExtDir + "/votTestSet.txt", "w")
 
     videos = glob.glob(votData + "/*")
     for video in videos:
@@ -436,5 +440,5 @@ if __name__ == '__main__':
     alovDataExt()
     imageNetDataExt()
     votDataExt()
-    creatLists()
+    creatLists(dataExtDir)
 
