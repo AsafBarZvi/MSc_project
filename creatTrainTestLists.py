@@ -14,8 +14,8 @@ def creatLists(dataExtDir):
     trainSet = open(dataExtDir + "/trainSet.txt", "w")
     maxTrainSetLenght = max(len(imageNetTrainFileLines), len(alovTrainFileLines))
     minTrainSetLenght = min(len(imageNetTrainFileLines), len(alovTrainFileLines))
-    largerListIdx = 0 if len(imageNetTrainFileLines) > len(imageNetTrainFileLines) else 1
-    appearRatioForShortList = maxTrainSetLenght/(minTrainSetLenght*2)
+    largerListIdx = 0 if len(imageNetTrainFileLines) > len(alovTrainFileLines) else 1
+    appearRatioForShortList = maxTrainSetLenght/minTrainSetLenght
     l = -1
     for i in range(maxTrainSetLenght):
 

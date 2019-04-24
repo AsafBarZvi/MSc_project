@@ -437,8 +437,8 @@ def votDataExt():
 
 if __name__ == '__main__':
 
-    alovDataExt()
-    imageNetDataExt()
-    votDataExt()
+    #alovDataExt()
+    #imageNetDataExt()
+    #votDataExt()
     creatLists(dataExtDir)
 
