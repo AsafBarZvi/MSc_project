@@ -3,7 +3,7 @@ from easydict import EasyDict as edict
 
 default_config = {
     "gpu"               : None,                         #gpu device used
-    "data_dir"          : "./dataExt_scheme1",          #data dir containing train.txt test.txt
+    "data_dir"          : "./dataExt_scheme2",          #data dir containing train.txt test.txt
     "batch_size"        : 10,                           #batch size
     "weight_decay"      : 0.00005,                      #decay on weights
     "bias_decay"        : 0.000005,                     #decay on biases
