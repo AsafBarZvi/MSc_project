@@ -14,7 +14,7 @@ import os
 from timer import timer_dict , timerStats
 from default import config , printCfg
 
-import net as net
+import net_scheme1 as net
 #import ipdb
 #from tensorflow.python import debug as tf_debug
 
@@ -236,9 +236,9 @@ def main():
 
                 with timer_dict['summary']:
                     for i in range(5):
-                        bbox_mid = np.abs(res['bbox_mid'][i]*399).astype(np.int)
-                        bbox_search = np.abs(res['bbox_search'][i]*399).astype(np.int)
-                        bboxGT = np.abs(cur_batch[3][i,:4]*399).astype(np.int)
+                        bbox_mid = np.abs(res['bbox_mid'][i]*226).astype(np.int)
+                        bbox_search = np.abs(res['bbox_search'][i]*226).astype(np.int)
+                        bboxGT = np.abs(cur_batch[3][i,:4]*226).astype(np.int)
                         training_imgs_samples.append((np.copy(cur_batch[0][i]), np.copy(cur_batch[1][i]), np.copy(cur_batch[2][i]), bbox_mid, bbox_search, bboxGT))
 
                 #timerStats()
@@ -281,9 +281,9 @@ def main():
 
                 with timer_dict['summary']:
                     for i in range(5):
-                        bbox_mid = np.abs(res['bbox_mid'][i]*399).astype(np.int)
-                        bbox_search = np.abs(res['bbox_search'][i]*399).astype(np.int)
-                        bboxGT = np.abs(cur_batch[3][i,:]*399).astype(np.int)
+                        bbox_mid = np.abs(res['bbox_mid'][i]*226).astype(np.int)
+                        bbox_search = np.abs(res['bbox_search'][i]*226).astype(np.int)
+                        bboxGT = np.abs(cur_batch[3][i,:]*226).astype(np.int)
                         validation_imgs_samples.append((np.copy(cur_batch[0][i]), np.copy(cur_batch[1][i]), np.copy(cur_batch[2][i]), bbox_mid, bbox_search, bboxGT))
                 #timerStats()
 

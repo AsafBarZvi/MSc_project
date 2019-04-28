@@ -1,23 +1,30 @@
 import cv2
 import tensorflow as tf
 import numpy as np
-#from matplotlib import pyplot as plt
 import glob
 import re
 import os
 import sys
 import time
-import imgaug as ia
-from imgaug import augmenters as iaa
+import importlib
 #import ipdb
 
-import net as net
-
-
-gpu = 2
-os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
 
 def main():
+
+    # Setup a free GPU core
+    availableGPU = None
+    for gpuId in range(int(os.popen("nvidia-smi -L | wc -l").readlines()[0])):
+        if int(os.popen("nvidia-smi -i {} -q --display=MEMORY | grep -m 1 Free | grep -o '[0-9]*'".format(gpuId)).readlines()[0]) < 1000:
+            continue
+        availableGPU = gpuId
+        break
+    if availableGPU == None:
+        print "No available GPU device!"
+        sys.exit(1)
+
+    os.environ['CUDA_VISIBLE_DEVICES'] = str(availableGPU)
+    print('Runing on GPU: {}'.format(availableGPU))
 
     def extBBvot(annParse):
         bbx1 = min(annParse[0],annParse[2],annParse[4],annParse[6])
@@ -48,18 +55,20 @@ def main():
         # return the intersection over union value
         return iou
 
-    #def view(img):
-    #    plt.imshow(img[:,:,::-1])
-    #    fig.show()
-    #    plt.pause(0.000005)
-    #    plt.clf()
-
-
     # Load all VOT videos
     videos = glob.glob("./data/votTestData/*")
-    preTrain = True
+    tf.reset_default_graph()
     model = sys.argv[1]
-    #model = "./snaps/goturnTrain_noAugOnlyAlov/final.ckpt" #sys.argv[2]
+    dataScheme = int(sys.argv[2])
+    if dataScheme == 1:
+        #net = importlib.import_module('net_scheme1')
+        net = importlib.import_module('net')
+        k1 = 3
+        k2 = 3
+    else:
+        net = importlib.import_module('net')
+        k1 = 1
+        k2 = 4
 
     robTot = 0
     iouTot = 0
@@ -67,16 +76,9 @@ def main():
     with tf.Session() as sess:
         # Initiate the network
         tracknet = net.TRACKNET(1)
-        with tf.variable_scope('train_step'):
-            train_step = tf.train.AdamOptimizer(0.0000005).minimize(tracknet.loss)
-        init = tf.global_variables_initializer()
-        init_local = tf.local_variables_initializer()
-        sess.run(init)
-        sess.run(init_local)
         saver = tf.train.Saver()
         saver.restore(sess, model)
 
-        #fig = plt.figure()
         predBB = [0,0,0,0]
         for video in videos:
             if re.search("list\.txt", video):
@@ -90,27 +92,30 @@ def main():
 
             initCounterSingleVid = -1
             iouTotSingleVid = 0
+            iou = 0
             startTimer = time.time()
-            for frameAnnIndx in xrange(1,len(framesAnn)):
+            for frameAnnIndx in xrange(2, len(framesAnn), 2):
                 # Extract GT annotation or predicted annotation
-                annParseTarget = [int(float(number)) for number in framesAnn[frameAnnIndx-1].split(',')]
+                annParseTarget = [int(float(number)) for number in framesAnn[frameAnnIndx-2].split(',')]
+                annParseMid = [int(float(number)) for number in framesAnn[frameAnnIndx-1].split(',')]
                 annParseSearch = [int(float(number)) for number in framesAnn[frameAnnIndx].split(',')]
 
-                if frameAnnIndx == 1 or iou < 0.5:
+                if iou < 0.5:
                     initCounterSingleVid += 1
                     [bbx1, bby1, bbx2, bby2] = extBBvot(annParseTarget)
                 else:
-                    [bbx1, bby1, bbx2, bby2] = predBB
+                    [bbx1, bby1, bbx2, bby2] = predBB_search
 
                 # Read the pair of frames
-                targetFrame = cv2.imread(frames[frameAnnIndx-1])
+                targetFrame = cv2.imread(frames[frameAnnIndx-2])
+                midFrame = cv2.imread(frames[frameAnnIndx-1])
                 searchFrame = cv2.imread(frames[frameAnnIndx])
 
                 # Prepeare the net inputs
                 cx = bbx1 + ((bbx2 - bbx1)/2)
                 cy = bby1 + ((bby2 - bby1)/2)
-                bbPadsH = 2*((bby2 - bby1)/2)
-                bbPadsW = 2*((bbx2 - bbx1)/2)
+                bbPadsH = k1*((bby2 - bby1)/2)
+                bbPadsW = k1*((bbx2 - bbx1)/2)
 
                 startCropY = 0 if cy-bbPadsH < 0 else cy-bbPadsH
                 endCropY = targetFrame.shape[0]-1 if cy+bbPadsH > targetFrame.shape[0]-1 else cy+bbPadsH
@@ -118,83 +123,83 @@ def main():
                 endCropX = targetFrame.shape[1]-1 if cx+bbPadsW > targetFrame.shape[1]-1 else cx+bbPadsW
 
                 targetCrop = targetFrame[startCropY:endCropY, startCropX:endCropX]
+                if dataScheme == 1:
+                    if endCropY - startCropY < 2*bbPadsH:
+                        zPads = np.zeros(((2*bbPadsH)-(endCropY-startCropY), targetCrop.shape[1], 3), dtype=np.uint8)
+                        if startCropY == 0:
+                            targetCrop = np.concatenate((zPads, targetCrop), axis=0)
+                        else:
+                            targetCrop = np.concatenate((targetCrop, zPads), axis=0)
+
+                    if endCropX - startCropX < 2*bbPadsW:
+                        zPads = np.zeros((targetCrop.shape[0], (2*bbPadsW)-(endCropX-startCropX), 3), dtype=np.uint8)
+                        if startCropX == 0:
+                            targetCrop = np.concatenate((zPads, targetCrop), axis=1)
+                        else:
+                            targetCrop = np.concatenate((targetCrop, zPads), axis=1)
+
+
+                bbPadsH = k2*((bby2 - bby1)/2)
+                bbPadsW = k2*((bbx2 - bbx1)/2)
+
+                startCropY = 0 if cy-bbPadsH < 0 else cy-bbPadsH
+                endCropY = midFrame.shape[0]-1 if cy+bbPadsH > midFrame.shape[0]-1 else cy+bbPadsH
+                startCropX = 0 if cx-bbPadsW < 0 else cx-bbPadsW
+                endCropX = midFrame.shape[1]-1 if cx+bbPadsW > midFrame.shape[1]-1 else cx+bbPadsW
+
+                midCrop = midFrame[startCropY:endCropY, startCropX:endCropX]
+
+                startCropY = 0 if cy-bbPadsH < 0 else cy-bbPadsH
+                endCropY = searchFrame.shape[0]-1 if cy+bbPadsH > searchFrame.shape[0]-1 else cy+bbPadsH
+                startCropX = 0 if cx-bbPadsW < 0 else cx-bbPadsW
+                endCropX = searchFrame.shape[1]-1 if cx+bbPadsW > searchFrame.shape[1]-1 else cx+bbPadsW
+
                 searchCrop = searchFrame[startCropY:endCropY, startCropX:endCropX]
 
                 # opencv reads as BGR and tensorflow gets RGB
-                target = cv2.resize(targetCrop[:,:,::-1], (227,227))
-                search = cv2.resize(searchCrop[:,:,::-1], (227,227))
+                if dataScheme == 1:
+                    target = cv2.resize(targetCrop[:,:,::-1], (227,227))
+                    mid = cv2.resize(midCrop[:,:,::-1], (227,227))
+                    search = cv2.resize(searchCrop[:,:,::-1], (227,227))
+                else:
+                    target = cv2.resize(targetCrop[:,:,::-1], (100,100))
+                    mid = cv2.resize(midCrop[:,:,::-1], (400,400))
+                    search = cv2.resize(searchCrop[:,:,::-1], (400,400))
+
                 target = np.expand_dims(target, axis=0)
+                mid = np.expand_dims(mid, axis=0)
                 search = np.expand_dims(search, axis=0)
 
-                # Finetune the tracker net for current tracked object
-                if preTrain and frameAnnIndx == 1:
-                    sess.run(init)
-                    sess.run(init_local)
-                    saver.restore(sess, model)
-                    #fig2 = plt.figure()
-                    [bbx1Search, bby1Search, bbx2Search, bby2Search] = extBBvot(annParseSearch)
-                    bbox = [bbx1Search- startCropX, bby1Search- startCropY, bbx2Search- startCropX, bby2Search- startCropY]
-                    bbox = np.array(bbox, dtype=np.float32)
-                    bbox[0] /= targetCrop.shape[1]
-                    bbox[1] /= targetCrop.shape[0]
-                    bbox[2] /= targetCrop.shape[1]
-                    bbox[3] /= targetCrop.shape[0]
-                    bbox = (bbox*227).astype(int)
-                    ia.seed(1)
-                    imgShape = ia.quokka(size=(227, 227))
-                    bbs = ia.BoundingBoxesOnImage([ia.BoundingBox(x1=bbox[0], y1=bbox[1], x2=bbox[2], y2=bbox[3])], shape=imgShape.shape)
-                    for fineTuneIter in range(20):
-                        targetForAug = np.copy(target[0,:,:,:])
-                        searchForAug = np.copy(search[0,:,:,:])
-                        scale = iaa.Affine(scale={"x": (1.0, 1.1), "y": (1.0, 1.1)})# Scale image and bounding box by 100% to 130%
-                        scale.to_deterministic()
-                        searchForAug = scale.augment_image(searchForAug)
-                        bbsScale = scale.augment_bounding_boxes([bbs])[0]
-                        bboxAug = bbsScale.bounding_boxes[0]
-                        bboxAug = np.array([bboxAug.x1, bboxAug.y1, bboxAug.x2, bboxAug.y2], dtype=int)
-                        bboxAug[bboxAug<0] = 0
-                        bboxAug[bboxAug>226] = 226
-                        bboxAugNorm = bboxAug.astype(np.float32)/226
-
-                        blurer = iaa.GaussianBlur((0,0.5))# blur image by a sigma between 0 of 0.5
-                        searchForAug = blurer.augment_image(searchForAug)
-                        targetForAug = blurer.augment_image(targetForAug)
-
-                        [_] = sess.run([train_step], feed_dict={tracknet.image: searchForAug[np.newaxis,:,:,:], tracknet.target: targetForAug[np.newaxis,:,:,:], tracknet.bbox: bboxAugNorm[np.newaxis,:]})
-
-                        #searchForAugShow = np.copy(searchForAug)
-                        #cv2.rectangle(searchForAugShow, tuple(bboxAug[:2]), tuple(bboxAug[2:]), (255,255,0), 3)
-                        #plt.subplot(2,1,1)
-                        #plt.imshow(targetForAug)
-                        #plt.subplot(2,1,2)
-                        #plt.imshow(searchForAugShow)
-                        #fig2.show()
-                        #plt.pause(1)
-                        #plt.clf()
-                    #plt.close(fig2)
-
                 # Infer
-                [res] = sess.run([tracknet.result], feed_dict={tracknet.image: search, tracknet.target: target})
+                [res] = sess.run([tracknet.result], feed_dict={tracknet.target: target, tracknet.mid: mid, tracknet.search: search})
 
                 # Convert resulted BB to image cords
-                resBBox = res['bbox'][0]
-                bbx1Pred = int(resBBox[0]*searchCrop.shape[1]) + startCropX
-                bby1Pred = int(resBBox[1]*searchCrop.shape[0]) + startCropY
-                bbx2Pred = int(resBBox[2]*searchCrop.shape[1]) + startCropX
-                bby2Pred = int(resBBox[3]*searchCrop.shape[0]) + startCropY
-                #cv2.rectangle(searchFrame, (bbx1Pred,bby1Pred), (bbx2Pred,bby2Pred), (0,0,255), 3)
-                predBB = [bbx1Pred, bby1Pred, bbx2Pred, bby2Pred]
+                resBBoxMid = np.squeeze(res['bbox_mid'])
+                resBBoxSearch = np.squeeze(res['bbox_search'])
+                bbx1Pred = int(resBBoxMid[0]*midCrop.shape[1]) + startCropX
+                bby1Pred = int(resBBoxMid[1]*midCrop.shape[0]) + startCropY
+                bbx2Pred = int(resBBoxMid[2]*midCrop.shape[1]) + startCropX
+                bby2Pred = int(resBBoxMid[3]*midCrop.shape[0]) + startCropY
+                bbx1PredSearch = int(resBBoxSearch[0]*searchCrop.shape[1]) + startCropX
+                bby1PredSearch = int(resBBoxSearch[1]*searchCrop.shape[0]) + startCropY
+                bbx2PredSearch = int(resBBoxSearch[2]*searchCrop.shape[1]) + startCropX
+                bby2PredSearch = int(resBBoxSearch[3]*searchCrop.shape[0]) + startCropY
+                predBB_mid = [bbx1Pred, bby1Pred, bbx2Pred, bby2Pred]
+                predBB_search = [bbx1PredSearch, bby1PredSearch, bbx2PredSearch, bby2PredSearch]
 
                 # Calculate IOU
-                [bbx1GT, bby1GT, bbx2GT, bby2GT] = extBBvot(annParseSearch)
-                #cv2.rectangle(searchFrame, (bbx1GT,bby1GT), (bbx2GT,bby2GT), (0,255,0), 3)
-                gtBB = [bbx1GT, bby1GT, bbx2GT, bby2GT]
-                iou = bb_intersection_over_union(predBB, gtBB)
+                [bbx1GT_mid, bby1GT_mid, bbx2GT_mid, bby2GT_mid] = extBBvot(annParseMid)
+                gtBB = [bbx1GT_mid, bby1GT_mid, bbx2GT_mid, bby2GT_mid]
+                iou = bb_intersection_over_union(predBB_mid, gtBB)
+                iouTotSingleVid += iou
+                if iou < 0.3:
+                    initCounterSingleVid += 1
+
+                [bbx1GT_search, bby1GT_search, bbx2GT_search, bby2GT_search] = extBBvot(annParseSearch)
+                gtBB = [bbx1GT_search, bby1GT_search, bbx2GT_search, bby2GT_search]
+                iou = bb_intersection_over_union(predBB_search, gtBB)
                 iouTotSingleVid += iou
 
-                # View frame
-                #plt.title("IoU - {}, initNum - {}".format(round(iou,2), initCounter))
-                #view(searchFrame)
 
             # Calculate accuracy, robustness and overall error per current video
             endTimer = time.time()
@@ -214,4 +219,8 @@ def main():
 
 
 if __name__ == '__main__':
+    if len(sys.argv) < 3:
+        print "Usage: python calcScore.py <pathToModel> <dataScheme(1|2)>"
+        sys.exit(0)
+
     sys.exit(main())
