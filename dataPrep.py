@@ -55,11 +55,11 @@ class DataPrep:
             mid_img = tf.read_file(input_queue[1])
             search_img = tf.read_file(input_queue[2])
             target_tensor = tf.to_float(tf.image.decode_jpeg(target_img, channels=3))
-            target_tensor = tf.image.resize_images(target_tensor, [100, 100], method=tf.image.ResizeMethod.BILINEAR)
+            target_tensor = tf.image.resize_images(target_tensor, [227, 227], method=tf.image.ResizeMethod.BILINEAR)
             mid_tensor = tf.to_float(tf.image.decode_jpeg(mid_img, channels=3))
-            mid_tensor = tf.image.resize_images(mid_tensor, [400, 400], method=tf.image.ResizeMethod.BILINEAR)
+            mid_tensor = tf.image.resize_images(mid_tensor, [227, 227], method=tf.image.ResizeMethod.BILINEAR)
             search_tensor = tf.to_float(tf.image.decode_jpeg(search_img, channels=3))
-            search_tensor = tf.image.resize_images(search_tensor, [400, 400], method=tf.image.ResizeMethod.BILINEAR)
+            search_tensor = tf.image.resize_images(search_tensor, [227, 227], method=tf.image.ResizeMethod.BILINEAR)
             box_tensor = input_queue[3]
             return [target_tensor, mid_tensor, search_tensor, box_tensor]
 

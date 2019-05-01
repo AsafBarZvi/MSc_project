@@ -189,10 +189,9 @@ class ImageSummary:
 
     #---------------------------------------------------------------------------
     def push(self, epoch, samples):
-        imgs = np.zeros((5, 400, 400*3, 3))
+        imgs = np.zeros((5, 227, 227*3, 3))
         for i, sample in enumerate(samples):
             imgTarget = sample[0]
-            imgTarget = cv2.resize(imgTarget, (400, 400))
             imgMid = sample[1]
             imgSearch = sample[2]
             imgMidPred = np.copy(imgMid)

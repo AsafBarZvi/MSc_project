@@ -61,8 +61,7 @@ def main():
     model = sys.argv[1]
     dataScheme = int(sys.argv[2])
     if dataScheme == 1:
-        #net = importlib.import_module('net_scheme1')
-        net = importlib.import_module('net')
+        net = importlib.import_module('net_scheme1')
         k1 = 3
         k2 = 3
     else:
