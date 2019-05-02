@@ -21,14 +21,16 @@ def creatLists(dataExtDir):
 
         # Write from short list
         if not i % appearRatioForShortList:
-            l += 1
-            idxForShortList = l % minTrainSetLenght
-            parseLine = trainLists[1-largerListIdx][idxForShortList].split(',')
-            search = cv2.imread(parseLine[2])
-            height = search.shape[0]
-            width = search.shape[1]
-            [bbx1, bby1, bbx2, bby2] = [float(parseLine[3])/width, float(parseLine[4])/height, float(parseLine[5])/width, float(parseLine[6])/height]
-            trainSet.write("{},{},{},{},{},{},{}\n".format(parseLine[0], parseLine[1], parseLine[2], bbx1, bby1, bbx2, bby2))
+            if l+1 < minTrainSetLenght:
+                l += 1
+                #idxForShortList = l % minTrainSetLenght
+                idxForShortList = l
+                parseLine = trainLists[1-largerListIdx][idxForShortList].split(',')
+                search = cv2.imread(parseLine[2])
+                height = search.shape[0]
+                width = search.shape[1]
+                [bbx1, bby1, bbx2, bby2] = [float(parseLine[3])/width, float(parseLine[4])/height, float(parseLine[5])/width, float(parseLine[6])/height]
+                trainSet.write("{},{},{},{},{},{},{}\n".format(parseLine[0], parseLine[1], parseLine[2], bbx1, bby1, bbx2, bby2))
 
         # Write from large list
         parseLine = trainLists[largerListIdx][i].split(',')

@@ -200,12 +200,8 @@ class ImageSummary:
             imgSearchPred = np.copy(imgSearch)
             imgSearchGT = np.copy(imgSearch)
             draw_box(imgSearchPred, sample[4], [255,0,0])
-            if len(sample[5]) > 4:
-                draw_box(imgMidGT, sample[5][:4], [0,255,0])
-                draw_box(imgSearchGT, sample[5][4:], [0,255,0])
-            else:
-                draw_box(imgMidGT, sample[3], [255,255,0])
-                draw_box(imgSearchGT, sample[5], [0,255,0])
+            draw_box(imgMidGT, sample[5], [0,255,0])
+            draw_box(imgSearchGT, sample[6], [0,255,0])
 
             #img[img>255] = 255
             #img[img<0] = 0

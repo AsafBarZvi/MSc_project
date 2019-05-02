@@ -302,6 +302,18 @@ def imageNetDataExt():
 
         cxPrev = bbx1Prev + ((bbx2Prev - bbx1Prev)/2)
         cyPrev = bby1Prev + ((bby2Prev - bby1Prev)/2)
+        bbPadsPrevH = k2*((bby2Prev - bby1Prev)/2)
+        bbPadsPrevW = k2*((bbx2Prev - bbx1Prev)/2)
+
+        startCropPrevY = 0 if cyPrev-bbPadsPrevH < 0 else cyPrev-bbPadsPrevH
+        endCropPrevY = framePrev.shape[0]-1 if cyPrev+bbPadsPrevH > framePrev.shape[0]-1 else cyPrev+bbPadsPrevH
+        startCropPrevX = 0 if cxPrev-bbPadsPrevW < 0 else cxPrev-bbPadsPrevW
+        endCropPrevX = framePrev.shape[1]-1 if cxPrev+bbPadsPrevW > framePrev.shape[1]-1 else cxPrev+bbPadsPrevW
+
+        if startCropPrevY == 0 or endCropPrevY == framePrev.shape[0]-1 or startCropPrevX == 0 or endCropPrevX == framePrev.shape[1]-1:
+            print "the object is to large in {}".format(image)
+            continue
+
         bbPadsPrevH = k1*((bby2Prev - bby1Prev)/2)
         bbPadsPrevW = k1*((bbx2Prev - bbx1Prev)/2)
 

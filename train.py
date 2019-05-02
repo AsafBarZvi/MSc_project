@@ -216,9 +216,9 @@ def main():
                 cur_batch = sess.run(dp.batch_queue)
 
                 with timer_dict['train']:
-                    #[_, loss, losses, res, checks] = sess.run([train_step, tracknet.loss, tracknet.losses, tracknet.result, tracknet.checks], feed_dict={tracknet.target: cur_batch[0],
                     [res] = sess.run([tracknet.result], feed_dict={tracknet.target: cur_batch[0], tracknet.mid: cur_batch[1], tracknet.search: cur_batch[2]})
-                    nccMax, pmMidBB, badSearchBB, badMidBB = tracknet.pmMatchMidBB(res, cur_batch)
+                    nccMax, pmMidBB, badSearchBB, badMidBB = tracknet.pmMatchMidBB(cur_batch)
+                    #[_, loss, losses, res, checks] = sess.run([train_step, tracknet.loss, tracknet.losses, tracknet.result, tracknet.checks], feed_dict={tracknet.target: cur_batch[0],
                     [_, loss, losses, res] = sess.run([train_step, tracknet.loss, tracknet.losses, tracknet.result], feed_dict={tracknet.target: cur_batch[0],
                                                                                                                                 tracknet.mid: cur_batch[1],
                                                                                                                                 tracknet.search: cur_batch[2],
@@ -229,9 +229,9 @@ def main():
 
                 iteraton = int(tf.train.global_step(sess, global_step))
 
-                if not iteraton % 500:
+                if not iteraton % 100:
                     #print "\n{}".format(checks)
-                    print "\nBad search BB: {}\nBad mid BB: {}\nnccMax: {}".format(badSearchBB, badMidBB, nccMax)
+                    print "\nBad search BB: {}\nBad mid BB: {}\nnccMax: {}\npmMidBB: {}".format(badSearchBB, badMidBB, nccMax, pmMidBB)
                     print losses
 
                 if iteraton == 0 or ((iteraton % args.summary_interval) != 0 and (iteraton % args.val_interval) != 0):
@@ -241,8 +241,9 @@ def main():
                     for i in range(5):
                         bbox_mid = np.abs(res['bbox_mid'][i]*226).astype(np.int)
                         bbox_search = np.abs(res['bbox_search'][i]*226).astype(np.int)
-                        bboxGT = np.abs(cur_batch[3][i,:4]*226).astype(np.int)
-                        training_imgs_samples.append((np.copy(cur_batch[0][i]), np.copy(cur_batch[1][i]), np.copy(cur_batch[2][i]), bbox_mid, bbox_search, bboxGT))
+                        bboxPM = np.abs(pmMidBB[i,:]*226).astype(np.int)
+                        bboxGT = np.abs(cur_batch[3][i,:]*226).astype(np.int)
+                        training_imgs_samples.append((np.copy(cur_batch[0][i]), np.copy(cur_batch[1][i]), np.copy(cur_batch[2][i]), bbox_mid, bbox_search, bboxPM, bboxGT))
 
                 #timerStats()
 
@@ -254,6 +255,7 @@ def main():
                 summary = sess.run(merged_summary,feed_dict={tracknet.target: cur_batch[0],
                                                              tracknet.mid: cur_batch[1],
                                                              tracknet.search: cur_batch[2],
+                                                             tracknet.bboxMid: pmMidBB,
                                                              tracknet.bbox: cur_batch[3]})
 
                 summary_writer.add_summary(summary, iteraton)
@@ -268,6 +270,13 @@ def main():
                 #-------------------------------------------------------------------
                 if (iteraton % args.val_interval) != 0:
                     continue
+
+                #-------------------------------------------------------------------
+                # Save a checktpoint
+                #-------------------------------------------------------------------
+                checkpoint = '{}/{}_{}.ckpt'.format(snaps_path, e+0, idx)
+                model_saver.save(sess, checkpoint)
+                #print('[i] Checkpoint saved: ' + checkpoint)
 
                 description = '[i] Valid {:>2}/{}'.format(e+1, args.epochs)
                 for idxTest in tqdm(range(n_valid_batches), total=n_valid_batches, desc=description, unit='batches', leave=False):
@@ -287,8 +296,9 @@ def main():
                     for i in range(5):
                         bbox_mid = np.abs(res['bbox_mid'][i]*226).astype(np.int)
                         bbox_search = np.abs(res['bbox_search'][i]*226).astype(np.int)
-                        bboxGT = np.abs(cur_batch[3][i,:]*226).astype(np.int)
-                        validation_imgs_samples.append((np.copy(cur_batch[0][i]), np.copy(cur_batch[1][i]), np.copy(cur_batch[2][i]), bbox_mid, bbox_search, bboxGT))
+                        bboxMidGT = np.abs(cur_batch[3][i,:4]*226).astype(np.int)
+                        bboxGT = np.abs(cur_batch[3][i,4:]*226).astype(np.int)
+                        validation_imgs_samples.append((np.copy(cur_batch[0][i]), np.copy(cur_batch[1][i]), np.copy(cur_batch[2][i]), bbox_mid, bbox_search, bboxMidGT, bboxGT))
                 #timerStats()
 
                 #-------------------------------------------------------------------
@@ -300,6 +310,7 @@ def main():
                 summary = sess.run(merged_summary,feed_dict={tracknet.target: cur_batch[0],
                                                              tracknet.mid: cur_batch[1],
                                                              tracknet.search: cur_batch[2],
+                                                             tracknet.bboxMid: cur_batch[3][:,:4],
                                                              tracknet.bbox: cur_batch[3][:,4:]})
 
                 summary_writer.add_summary(summary, iteraton)
@@ -315,12 +326,6 @@ def main():
 
                 summary_writer.flush()
 
-                #-------------------------------------------------------------------
-                # Save a checktpoint
-                #-------------------------------------------------------------------
-                checkpoint = '{}/{}_{}.ckpt'.format(snaps_path, e+1, idx)
-                model_saver.save(sess, checkpoint)
-                #print('[i] Checkpoint saved: ' + checkpoint)
 
             start_idx = 0
 
