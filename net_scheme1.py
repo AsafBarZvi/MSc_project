@@ -68,7 +68,7 @@ class TRACKNET:
         self.target = tf.placeholder(tf.float32, [self.batch_size, 227, 227, 3])
         self.mid = tf.placeholder(tf.float32, [self.batch_size, 227, 227, 3])
         self.search = tf.placeholder(tf.float32, [self.batch_size, 227, 227, 3])
-        self.bboxMid= tf.placeholder(tf.float32, [self.batch_size, 4])
+        self.bboxMid= tf.placeholder(tf.float32, [self.batch_size, 5])
         self.bbox= tf.placeholder(tf.float32, [self.batch_size, 4])
 
         def resUnit(inData, outChannel, kerSize, layerName):
@@ -190,16 +190,17 @@ class TRACKNET:
 
             ## Calculate bounding box regression loss for the mid patch
             # First, filter the invalid bounding boxes
-            bbCordSum = tf.reduce_sum(pmMidBB, axis=1)
-            validMask = tf.tile(tf.reshape(tf.greater(bbCordSum, 0.01), [self.batch_size,1]), [1,4])
-            pmMidBB = tf.reshape(tf.boolean_mask(pmMidBB, validMask), [-1,4])
+            bbCordSum = tf.reduce_sum(pmMidBB[:,:4], axis=1)
+            validMask = tf.tile(tf.reshape(tf.logical_and(tf.greater(bbCordSum, 0.01), tf.greater(pmMidBB[:,4],1.5)), [self.batch_size,1]), [1,4])
+            pmMidBB = tf.reshape(tf.boolean_mask(pmMidBB[:,:4], validMask), [-1,4])
             fc_output_mid = tf.reshape(tf.boolean_mask(fc_output_mid, validMask), [-1,4])
             self.checks = pmMidBB
             # Now, calculate the L1 loss
             bboxDistMid = tf.subtract(pmMidBB, fc_output_mid)
             bboxDistMid = tf.abs(bboxDistMid)
             bboxDistMid = tf.reduce_sum(bboxDistMid, axis=1)
-            self.bboxLossMid = tf.reduce_mean(bboxDistMid, name="bboxLossMid")
+            bboxLossMid = tf.reduce_mean(bboxDistMid, name="bboxLossMid")
+            self.bboxLossMid = tf.where(tf.is_nan(bboxLossMid), 0., bboxLossMid, name="bboxLossMid")
             _variable_summaries(self.bboxLossMid)
 
             ## Calculate bounding box regression loss

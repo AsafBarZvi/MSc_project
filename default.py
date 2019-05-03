@@ -3,7 +3,7 @@ from easydict import EasyDict as edict
 
 default_config = {
     "gpu"               : None,                         #gpu device used
-    "data_dir"          : "./dataExt_scheme1",          #data dir containing train.txt test.txt
+    "data_dir"          : "./dataExt_scheme2",          #data dir containing train.txt test.txt
     "batch_size"        : 20,                           #batch size
     "weight_decay"      : 0.00005,                      #decay on weights
     "bias_decay"        : 0.000005,                     #decay on biases
@@ -16,7 +16,7 @@ default_config = {
     "lr_boundaries"     : "17;19",                      #epochs to jump between lr values
     "momentum"          : 0.9,                          #momentum
     "continue_training" : False,                        #resume training from latest checkpoint
-    "checkpoint_file"   : './snaps/semSupervisedTracking_3_images_data_scheme_1_larger_train_dataset_upgradeArch/final.ckpt',                         #resume from specific ckpt file
+    "checkpoint_file"   : './snaps/semSupervisedTracking_3_images_data_scheme_2_larger_train_dataset_upgradeArch/final.ckpt',                         #resume from specific ckpt file
     "max_snapshots_keep": 15,                           #max snaps to keep 0 means all
     "output_dir"        : "infer_out"                   #detections images output path
 

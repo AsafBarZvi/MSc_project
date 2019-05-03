@@ -1,5 +1,7 @@
 import tensorflow as tf
 import numpy as np
+import cv2
+from threading import Thread
 #import ipdb
 
 
@@ -66,6 +68,7 @@ class TRACKNET:
         self.target = tf.placeholder(tf.float32, [self.batch_size, 100, 100, 3])
         self.mid = tf.placeholder(tf.float32, [self.batch_size, 400, 400, 3])
         self.search = tf.placeholder(tf.float32, [self.batch_size, 400, 400, 3])
+        self.bboxMid= tf.placeholder(tf.float32, [self.batch_size, 5])
         self.bbox= tf.placeholder(tf.float32, [self.batch_size, 4])
 
         def resUnit(inData, outChannel, kerSize, layerName):
@@ -163,176 +166,15 @@ class TRACKNET:
             fc_output_mid = self.fc_output[:,:4]
             fc_output_search = self.fc_output[:,4:]
             bboxGT = self.bbox
+            pmMidBB = self.bboxMid
 
-            ## Scaling all bounding boxes for the PM loss - target BBox is 1/3 of the patch size --> make it 1/5 of the patch size, thus 1/3 to 2/5 is 1.2, and 2/3 to 3/5 is 0.9
-            #t = tf.ones([self.batch_size, 2], dtype=tf.bool)
-            #f = tf.zeros([self.batch_size, 2], dtype=tf.bool)
-            #boxScaleMask = tf.concat([t, f], axis=1)
-            #fc_output_mid_scale = tf.where(boxScaleMask , fc_output_mid*1.2, fc_output_mid*0.9)
-            #fc_output_search_scale = tf.where(boxScaleMask , fc_output_search*1.2, fc_output_search*0.9)
-            #bboxGT_scale = tf.where(boxScaleMask , bboxGT*1.2, bboxGT*0.9)
-            fc_output_mid_scale = fc_output_mid
-            fc_output_search_scale = fc_output_search
-            bboxGT_scale = bboxGT
-
-            badBBmid = 0
-            badBBsearch = 0
-            badBBsearchGT = 0 # Sanity
-
-            for imType in ['image', 'feature']:
-
-                if imType == 'image':
-                    target = self.target
-                    mid = self.mid
-                    search = self.search
-                else:
-                    target = self.targetF
-                    mid = self.midF
-                    search = self.searchF
-
-                ## Extract the target object
-                targetPM = target
-
-                def f1(batchIdx, img): return tf.abs(img[batchIdx, img.shape[1]*3/8:img.shape[1]*5/8, img.shape[2]*3/8:img.shape[2]*5/8, :]-256)
-                def f2(img): return tf.image.resize_images(img, [int(targetPM.shape[1]),int(targetPM.shape[2])])
-
-                # Extract mid-target object prediction for the PM loss
-                midF = mid
-                midPM_target = midF[0,tf.cast(int(midF.shape[1])*fc_output_mid_scale[0,1], tf.int32):tf.cast(int(midF.shape[1])*fc_output_mid_scale[0,3], tf.int32),
-                        tf.cast(int(midF.shape[2])*fc_output_mid_scale[0,0], tf.int32):tf.cast(int(midF.shape[2])*fc_output_mid_scale[0,2], tf.int32), :]
-                if imType == 'image':
-                    badBBmid = tf.cond(tf.equal(tf.size(midPM_target), 0), lambda: tf.add(badBBmid, 1), lambda: badBBmid, name="badBBmid")
-                midPM_target = tf.cond(tf.equal(tf.size(midPM_target), 0), lambda: f1(0, midF), lambda: f2(midPM_target))
-                midPM_target = tf.expand_dims(midPM_target, 0)
-                for i in range(1, self.batch_size):
-                    midF_cropNscale = midF[i,tf.cast(int(midF.shape[1])*fc_output_mid_scale[i,1], tf.int32):tf.cast(int(midF.shape[1])*fc_output_mid_scale[i,3], tf.int32),
-                            tf.cast(int(midF.shape[2])*fc_output_mid_scale[i,0], tf.int32):tf.cast(int(midF.shape[2])*fc_output_mid_scale[i,2], tf.int32), :]
-                    if imType == 'image':
-                        badBBmid = tf.cond(tf.equal(tf.size(midF_cropNscale), 0), lambda: tf.add(badBBmid, 1), lambda: badBBmid, name="badBBmid")
-                    midF_cropNscale = tf.cond(tf.equal(tf.size(midF_cropNscale), 0), lambda: f1(i, midF), lambda: f2(midF_cropNscale))
-                    midF_cropNscale = tf.expand_dims(midF_cropNscale, 0)
-                    midPM_target = tf.concat([midPM_target,midF_cropNscale], axis=0)
-
-                # Extract search-target object prediction for the PM loss
-                searchF = search
-                searchPM_target = searchF[0,tf.cast(int(searchF.shape[1])*fc_output_search_scale[0,1], tf.int32):tf.cast(int(searchF.shape[1])*fc_output_search_scale[0,3], tf.int32),
-                        tf.cast(int(searchF.shape[2])*fc_output_search_scale[0,0], tf.int32):tf.cast(int(searchF.shape[2])*fc_output_search_scale[0,2], tf.int32), :]
-                if imType == 'image':
-                    badBBsearch = tf.cond(tf.equal(tf.size(searchPM_target), 0), lambda: tf.add(badBBsearch, 1), lambda: badBBsearch, name="badBBsearch")
-                searchPM_target = tf.cond(tf.equal(tf.size(searchPM_target), 0), lambda: f1(0, searchF), lambda: f2(searchPM_target))
-                searchPM_target = tf.expand_dims(searchPM_target, 0)
-                for i in range(1, self.batch_size):
-                    searchF_cropNscale = searchF[i,tf.cast(int(searchF.shape[1])*fc_output_search_scale[i,1], tf.int32):tf.cast(int(searchF.shape[1])*fc_output_search_scale[i,3], tf.int32),
-                            tf.cast(int(searchF.shape[2])*fc_output_search_scale[i,0], tf.int32):tf.cast(int(searchF.shape[2])*fc_output_search_scale[i,2], tf.int32), :]
-                    if imType == 'image':
-                        badBBsearch = tf.cond(tf.equal(tf.size(searchF_cropNscale), 0), lambda: tf.add(badBBsearch, 1), lambda: badBBsearch, name="badBBsearch")
-                    searchF_cropNscale = tf.cond(tf.equal(tf.size(searchF_cropNscale), 0), lambda: f1(i, searchF), lambda: f2(searchF_cropNscale))
-                    searchF_cropNscale = tf.expand_dims(searchF_cropNscale, 0)
-                    searchPM_target = tf.concat([searchPM_target, searchF_cropNscale], axis=0)
-
-                # Extract search object GT for the PM loss
-                searchPM = searchF[0,tf.cast(int(searchF.shape[1])*bboxGT_scale[0,1], tf.int32):tf.cast(int(searchF.shape[1])*bboxGT_scale[0,3], tf.int32),
-                        tf.cast(int(searchF.shape[2])*bboxGT_scale[0,0], tf.int32):tf.cast(int(searchF.shape[2])*bboxGT_scale[0,2], tf.int32), :]
-                if imType == 'image':
-                    badBBsearchGT = tf.cond(tf.equal(tf.size(searchPM), 0), lambda: tf.add(badBBsearchGT, 1), lambda: badBBsearchGT, name="badBBsearchGT")
-                searchPM = tf.cond(tf.equal(tf.size(searchPM), 0), lambda: f1(0, searchF), lambda: f2(searchPM))
-                searchPM = tf.expand_dims(searchPM, 0)
-                for i in range(1, self.batch_size):
-                    searchF_cropNscale = searchF[i,tf.cast(int(searchF.shape[1])*bboxGT_scale[i,1], tf.int32):tf.cast(int(searchF.shape[1])*bboxGT_scale[i,3], tf.int32),
-                            tf.cast(int(searchF.shape[2])*bboxGT_scale[i,0], tf.int32):tf.cast(int(searchF.shape[2])*bboxGT_scale[i,2], tf.int32), :]
-                    if imType == 'image':
-                        badBBsearchGT = tf.cond(tf.equal(tf.size(searchF_cropNscale), 0), lambda: tf.add(badBBsearchGT, 1), lambda: badBBsearchGT, name="badBBsearchGT")
-                    searchF_cropNscale = tf.cond(tf.equal(tf.size(searchF_cropNscale), 0), lambda: f1(i, searchF), lambda: f2(searchF_cropNscale))
-                    searchF_cropNscale = tf.expand_dims(searchF_cropNscale, 0)
-                    searchPM = tf.concat([searchPM, searchF_cropNscale], axis=0)
-
-                # Extract mid-search object prediction for the PM loss
-                midPM_search = midF[0,tf.cast(int(midF.shape[1])*fc_output_mid_scale[0,1], tf.int32):tf.cast(int(midF.shape[1])*fc_output_mid_scale[0,3], tf.int32),
-                        tf.cast(int(midF.shape[2])*fc_output_mid_scale[0,0], tf.int32):tf.cast(int(midF.shape[2])*fc_output_mid_scale[0,2], tf.int32), :]
-                midPM_search = tf.cond(tf.equal(tf.size(midPM_search), 0), lambda: f1(0, midF), lambda: f2(midPM_search))
-                midPM_search = tf.expand_dims(midPM_search, 0)
-                for i in range(1, self.batch_size):
-                    midF_cropNscale = midF[i,tf.cast(int(midF.shape[1])*fc_output_mid_scale[i,1], tf.int32):tf.cast(int(midF.shape[1])*fc_output_mid_scale[i,3], tf.int32),
-                            tf.cast(int(midF.shape[2])*fc_output_mid_scale[i,0], tf.int32):tf.cast(int(midF.shape[2])*fc_output_mid_scale[i,2], tf.int32), :]
-                    midF_cropNscale = tf.cond(tf.equal(tf.size(midF_cropNscale), 0), lambda: f1(i, midF), lambda: f2(midF_cropNscale))
-                    midF_cropNscale = tf.expand_dims(midF_cropNscale, 0)
-                    midPM_search = tf.concat([midPM_search,midF_cropNscale], axis=0)
-
-                if imType == 'image':
-                    _variable_summaries(badBBmid)
-                    _variable_summaries(badBBsearch)
-                    _variable_summaries(badBBsearchGT)
-                    self.checks = {'badBBmid': badBBmid, 'badBBsearch': badBBsearch, 'badBBsearchGT': badBBsearchGT}
-
-                ## Calculate NCC photometric losses
-                meanTarget, varTarget = tf.nn.moments(targetPM, axes=[1,2,3])
-                meanTarget = tf.reshape(meanTarget, [-1,1,1,1])
-                stdTarget = tf.reshape(tf.sqrt(varTarget), [-1,1,1,1])
-
-                meanMid_target, varMid_target = tf.nn.moments(midPM_target, axes=[1,2,3])
-                meanMid_target = tf.reshape(meanMid_target, [-1,1,1,1])
-                stdMid_target = tf.reshape(tf.sqrt(varMid_target), [-1,1,1,1])
-
-                meanMid_search, varMid_search = tf.nn.moments(midPM_search, axes=[1,2,3])
-                meanMid_search = tf.reshape(meanMid_search, [-1,1,1,1])
-                stdMid_search = tf.reshape(tf.sqrt(varMid_search), [-1,1,1,1])
-
-                meanSearch_target, varSearch_target = tf.nn.moments(searchPM_target, axes=[1,2,3])
-                meanSearch_target = tf.reshape(meanSearch_target, [-1,1,1,1])
-                stdSearch_target = tf.reshape(tf.sqrt(varSearch_target), [-1,1,1,1])
-
-                meanSearch, varSearch = tf.nn.moments(searchPM, axes=[1,2,3])
-                meanSearch = tf.reshape(meanSearch, [-1,1,1,1])
-                stdSearch = tf.reshape(tf.sqrt(varSearch), [-1,1,1,1])
-
-                if imType == 'image':
-
-                    pmLossTargetSearchBound = (1 - tf.reduce_mean(((targetPM-meanTarget)/stdTarget)*((searchPM-meanSearch)/stdSearch))) / 2
-                    self.pmLossTargetSearchBound = tf.where(tf.is_nan(pmLossTargetSearchBound), 0., pmLossTargetSearchBound, name="pmLossTargetSearchBound")
-                    _variable_summaries(self.pmLossTargetSearchBound)
-
-                    pmLossTargetMid = ((1 - tf.reduce_mean(((targetPM-meanTarget)/stdTarget)*((midPM_target-meanMid_target)/stdMid_target))) / 2) - pmLossTargetSearchBound
-                    pmLossTargetMid = tf.maximum(0., pmLossTargetMid)
-                    self.pmLossTargetMid = tf.where(tf.is_nan(pmLossTargetMid), 0., pmLossTargetMid, name="pmNccLossTargetMid")
-                    _variable_summaries(self.pmLossTargetMid)
-
-                    pmLossMidSearch = ((1 - tf.reduce_mean(((searchPM-meanSearch)/stdSearch)*((midPM_search-meanMid_search)/stdMid_search))) / 2) - pmLossTargetSearchBound
-                    pmLossMidSearch = tf.maximum(0., pmLossMidSearch)
-                    self.pmLossMidSearch = tf.where(tf.is_nan(pmLossMidSearch), 0., pmLossMidSearch, name="pmNccLossMidSearch")
-                    _variable_summaries(self.pmLossMidSearch)
-
-                    #pmLossTargetSearch = ((1 - tf.reduce_mean(((targetPM-meanTarget)/stdTarget)*((searchPM_target-meanSearch_target)/stdSearch_target))) / 2) - pmLossTargetSearchBound
-                    #pmLossTargetSearch = tf.maximum(0., pmLossTargetSearch)
-                    #self.pmLossTargetSearch = tf.where(tf.is_nan(pmLossTargetSearch), 0., pmLossTargetSearch, name="pmNccLossTargetSearch")
-                    #_variable_summaries(self.pmLossTargetSearch)
-                else:
-                    #pmLossTargetSearchBoundF = (1 - tf.reduce_mean(((targetPM-meanTarget)/stdTarget)*((searchPM-meanSearch)/stdSearch))) / 2
-                    #self.pmLossTargetSearchBoundF = tf.where(tf.is_nan(pmLossTargetSearchBoundF), 0., pmLossTargetSearchBoundF, name="pmLossTargetSearchBoundF")
-                    #_variable_summaries(self.pmLossTargetSearchBoundF)
-
-                    pmLossTargetMidF = ((1 - tf.reduce_mean(((targetPM-meanTarget)/stdTarget)*((midPM_target-meanMid_target)/stdMid_target))) / 2)
-                    pmLossTargetMidF = tf.maximum(0., pmLossTargetMidF)
-                    self.pmLossTargetMidF = tf.where(tf.is_nan(pmLossTargetMidF), 0., pmLossTargetMidF, name="pmNccLossTargetMidF")
-                    _variable_summaries(self.pmLossTargetMidF)
-
-                    pmLossMidSearchF = ((1 - tf.reduce_mean(((searchPM-meanSearch)/stdSearch)*((midPM_search-meanMid_search)/stdMid_search))) / 2)
-                    pmLossMidSearchF = tf.maximum(0., pmLossMidSearchF)
-                    self.pmLossMidSearchF = tf.where(tf.is_nan(pmLossMidSearchF), 0., pmLossMidSearchF, name="pmNccLossMidSearchF")
-                    _variable_summaries(self.pmLossMidSearchF)
-
-                    #pmLossTargetSearchF = ((1 - tf.reduce_mean(((targetPM-meanTarget)/stdTarget)*((searchPM_target-meanSearch_target)/stdSearch_target))) / 2) - pmLossTargetSearchBoundF
-                    #pmLossTargetSearchF = tf.maximum(0., pmLossTargetSearchF)
-                    #self.pmLossTargetSearchF = tf.where(tf.is_nan(pmLossTargetSearchF), 0., pmLossTargetSearchF, name="pmNccLossTargetSearchF")
-                    #_variable_summaries(self.pmLossTargetSearchF)
-
-
-            ## Calculate mid predicted BB distance from search GT BB and penalize if above threshold - half the image size
+            ## Calculate mid predicted BB distance from search GT BB and penalize if above threshold - 40% the image size
             midBBDistFromGT = tf.subtract(bboxGT, fc_output_mid)
             midBBDistFromGT = tf.abs(midBBDistFromGT)
-            midBBDistFromGT = tf.where(tf.greater(midBBDistFromGT, 0.4), midBBDistFromGT, tf.zeros(midBBDistFromGT.shape, dtype=tf.float32))
+            midBBDistFromGT = tf.where(tf.greater(midBBDistFromGT, 0.3), midBBDistFromGT, tf.zeros(midBBDistFromGT.shape, dtype=tf.float32))
             midBBDistFromGT = tf.reduce_sum(midBBDistFromGT, axis=1)
-            self.midBBoxLoss = tf.reduce_mean(midBBDistFromGT, name="midBBoxLoss")
-            _variable_summaries(self.midBBoxLoss)
+            self.midBBoxGTLoss = tf.reduce_mean(midBBDistFromGT, name="midBBoxGTLoss")
+            _variable_summaries(self.midBBoxGTLoss)
 
             ## Bound the predicted box dimensions
             widthBoxMid = tf.abs(fc_output_mid[:,2] - fc_output_mid[:,0])
@@ -341,11 +183,26 @@ class TRACKNET:
             searchHeight = tf.abs(bboxGT[:,3] - bboxGT[:,1])
             widthDiff = tf.abs(widthBoxMid - searchWidth)
             heightDiff = tf.abs(heightBoxMid - searchHeight)
-            widthDiffLoss = tf.where(tf.greater(widthDiff, 0.15), widthDiff, tf.zeros(widthDiff.shape, dtype=tf.float32))
-            heightDiffLoss = tf.where(tf.greater(heightDiff, 0.15), heightDiff, tf.zeros(heightDiff.shape, dtype=tf.float32))
+            widthDiffLoss = tf.where(tf.greater(widthDiff, 0.1), widthDiff, tf.zeros(widthDiff.shape, dtype=tf.float32))
+            heightDiffLoss = tf.where(tf.greater(heightDiff, 0.1), heightDiff, tf.zeros(heightDiff.shape, dtype=tf.float32))
             diffLoss = tf.add(widthDiffLoss, heightDiffLoss)
             self.diffLoss = tf.reduce_mean(diffLoss, name="diffLoss")
             _variable_summaries(self.diffLoss)
+
+            ## Calculate bounding box regression loss for the mid patch
+            # First, filter the invalid bounding boxes
+            bbCordSum = tf.reduce_sum(pmMidBB[:,:4], axis=1)
+            validMask = tf.tile(tf.reshape(tf.logical_and(tf.greater(bbCordSum, 0.01), tf.greater(pmMidBB[:,4],1.5)), [self.batch_size,1]), [1,4])
+            pmMidBB = tf.reshape(tf.boolean_mask(pmMidBB[:,:4], validMask), [-1,4])
+            fc_output_mid = tf.reshape(tf.boolean_mask(fc_output_mid, validMask), [-1,4])
+            self.checks = pmMidBB
+            # Now, calculate the L1 loss
+            bboxDistMid = tf.subtract(pmMidBB, fc_output_mid)
+            bboxDistMid = tf.abs(bboxDistMid)
+            bboxDistMid = tf.reduce_sum(bboxDistMid, axis=1)
+            bboxLossMid = tf.reduce_mean(bboxDistMid, name="bboxLossMid")
+            self.bboxLossMid = tf.where(tf.is_nan(bboxLossMid), 0., bboxLossMid, name="bboxLossMid")
+            _variable_summaries(self.bboxLossMid)
 
             ## Calculate bounding box regression loss
             bboxDist = tf.subtract(bboxGT, fc_output_search)
@@ -354,21 +211,192 @@ class TRACKNET:
             self.bboxLoss = tf.reduce_mean(bboxDist, name="bboxLoss")
             _variable_summaries(self.bboxLoss)
 
-
-            self.loss = self.bboxLoss + self.midBBoxLoss + self.diffLoss + self.pmLossTargetMid + self.pmLossMidSearch + self.pmLossTargetMidF + self.pmLossMidSearchF
+            self.loss = self.bboxLoss + self.bboxLossMid + 2*self.midBBoxGTLoss + 2*self.diffLoss
 
             self.losses = {
                     'bboxLoss': self.bboxLoss,
-                    'midBBoxLoss': self.midBBoxLoss,
-                    'diffLoss': self.diffLoss,
-                    'pmLossTargetMid': self.pmLossTargetMid,
-                    'pmLossMidSearch': self.pmLossMidSearch,
-                    #'pmLossTargetSearch': self.pmLossTargetSearch,
-                    'pmLossTargetMidF': self.pmLossTargetMidF,
-                    'pmLossMidSearchF': self.pmLossMidSearchF
-                    #'pmLossTargetSearchF': self.pmLossTargetSearchF
+                    'bboxLossMid': self.bboxLossMid,
+                    'midBBoxLoss': self.midBBoxGTLoss,
+                    'diffLoss': self.diffLoss
             }
 
+
+    #-------------------------------------------------------------------------------
+
+    #-----------------------------------------------------------------------
+    # Python function to compute the best mid bounding box using PM match
+    #-----------------------------------------------------------------------
+    def pmMatchMidBB(self, inData):
+
+        def findBestMatch(i, searchBBoxGTScaled, mid, search, targetPM, meanTarget, stdTarget, nccMax, pmMidBB):
+
+            ## Extract search object based on GT bounding box, for the PM match
+            searchPM = search[i, int(search.shape[1]*searchBBoxGTScaled[i,1]):int(search.shape[1]*searchBBoxGTScaled[i,3]),
+                                 int(search.shape[2]*searchBBoxGTScaled[i,0]):int(search.shape[2]*searchBBoxGTScaled[i,2]), :]
+            if searchPM.size == 0:
+                return
+            #searchPM = cv2.resize(searchPM, (targetPM.shape[2], targetPM.shape[1]))
+
+            ## Calculate search NCC parameters for the photometric match
+            meanSearch = np.mean(searchPM)
+            stdSearch = np.sqrt(np.var(searchPM))
+
+            ## Run over the mid patch to find the bounding box which yield the maximum NCC similarity
+            # Initial guess - the mid BB prediction
+            yMin = int(mid.shape[1]*searchBBoxGTScaled[i,1])
+            yMax = int(mid.shape[1]*searchBBoxGTScaled[i,3])
+            xMin = int(mid.shape[2]*searchBBoxGTScaled[i,0])
+            xMax = int(mid.shape[2]*searchBBoxGTScaled[i,2])
+
+            firstCheck = True
+            foundGoodMatch = False
+            for xShift in range(-32, 32, 4):
+                for yShift in range(-32, 32, 4):
+                    for xVar in range(-2, 2, 2):
+                        for yVar in range(-2, 2, 2):
+
+                            if foundGoodMatch:
+                                return
+
+                            # Extract mid object prediction for the PM loss
+                            midPM = mid[i, yMin+yShift+yVar:yMax+yShift-yVar, xMin+xShift+xVar:xMax+xShift-xVar, :]
+                            if midPM.size == 0:
+                                return
+                            midTargetPM = cv2.resize(midPM, (targetPM.shape[2], targetPM.shape[1]))
+                            midSearchPM = cv2.resize(midPM, (searchPM.shape[1], searchPM.shape[0]))
+
+                            ## Calculate mid NCC parameters for the photometric match
+                            meanMidTargetPM = np.mean(midTargetPM)
+                            stdMidTargetPM = np.sqrt(np.var(midTargetPM))
+                            meanMidSearchPM = np.mean(midSearchPM)
+                            stdMidSearchPM = np.sqrt(np.var(midSearchPM))
+
+                            try:
+                                nccTargetMid = np.mean(((targetPM[i]-meanTarget[i])/stdTarget[i])*((midTargetPM-meanMidTargetPM)/stdMidTargetPM))
+                                nccMidSearch = np.mean(((searchPM-meanSearch)/stdSearch)*((midSearchPM-meanMidSearchPM)/stdMidSearchPM))
+                            except:
+                                print "Couldn't calculate NCC..."
+                                return
+
+                            if firstCheck:
+                                nccMax[i] = nccTargetMid + nccMidSearch
+                                pmMidBB[i] = [((xMin+xShift+xVar)/float(mid.shape[2]))-widthShift[i], ((yMin+yShift+yVar)/float(mid.shape[1]))-heightShift[i],
+                                              ((xMax+xShift-xVar)/float(mid.shape[2]))+widthShift[i], ((yMax+yShift-yVar)/float(mid.shape[1]))+heightShift[i]]
+                            else:
+                                if nccMax[i] < nccTargetMid + nccMidSearch:
+                                    nccMax[i] = nccTargetMid + nccMidSearch
+                                    pmMidBB[i] = [((xMin+xShift+xVar)/float(mid.shape[2]))-widthShift[i], ((yMin+yShift+yVar)/float(mid.shape[1]))-heightShift[i],
+                                                  ((xMax+xShift-xVar)/float(mid.shape[2]))+widthShift[i], ((yMax+yShift-yVar)/float(mid.shape[1]))+heightShift[i]]
+
+                            if nccMax[i] > 1.6 or nccTargetMid > 0.9 or nccMidSearch > 0.9:
+                                foundGoodMatch = True
+
+        #-------------------------------------------------------------------------------
+        ## Scaling all bounding boxes for the PM loss - target BBox is exactly the patch size --> make it 80% of the patch size, thus make the GT bounding box 80% of its size
+        searchBBoxGT = inData[3]
+        widthShift = 0.2*((searchBBoxGT[:,2]-searchBBoxGT[:,0])/2.)
+        heightShift = 0.2*((searchBBoxGT[:,3]-searchBBoxGT[:,1])/2.)
+        widthShift = np.reshape(widthShift, (-1,1))
+        heightShift = np.reshape(heightShift, (-1,1))
+        searchBBoxGTScaled = searchBBoxGT + np.concatenate((widthShift, heightShift, -widthShift, -heightShift), axis=1)
+
+        target = inData[0]
+        mid = inData[1]
+        search = inData[2]
+
+        ## Extract target object for the PM match
+        targetPM = target
+        targetPM = targetPM[:, targetPM.shape[1]*1/10:targetPM.shape[1]*9/10, targetPM.shape[2]*1/10:targetPM.shape[2]*9/10, :]
+
+        ## Calculate target NCC parameters for the photometric match
+        meanTarget = np.mean(targetPM, axis=(1,2,3))
+        stdTarget = np.sqrt(np.var(targetPM, axis=(1,2,3)))
+
+        ## Run over the batch and match the most similar mid bounding box to the target and search
+        nccMax = -2*np.ones((self.batch_size), dtype=np.float32)
+        pmMidBB = np.zeros((self.batch_size, 4), dtype=np.float32)
+        countBadSearchBB = 0
+        countBadMidBB = 0
+
+        for idxOffset in range(0, self.batch_size, self.batch_size/5):
+
+            threads = [None] * (self.batch_size/5)
+            for i in range(len(threads)):
+                threads[i] = Thread(target=findBestMatch, args=(i+idxOffset, searchBBoxGTScaled, mid, search, targetPM, meanTarget, stdTarget, nccMax, pmMidBB))
+                threads[i].start()
+            for i in range(len(threads)):
+                threads[i].join()
+
+        #for i in range(self.batch_size):
+        #    #print "Run on sample number: {}".format(i)
+
+        #    ## Extract search object based on GT bounding box, for the PM match
+        #    searchPM = search[i, int(search.shape[1]*searchBBoxGTScaled[i,1]):int(search.shape[1]*searchBBoxGTScaled[i,3]),
+        #                         int(search.shape[2]*searchBBoxGTScaled[i,0]):int(search.shape[2]*searchBBoxGTScaled[i,2]), :]
+        #    if searchPM.size == 0:
+        #        countBadSearchBB += 1
+        #        continue
+        #    #searchPM = cv2.resize(searchPM, (targetPM.shape[2], targetPM.shape[1]))
+
+        #    ## Calculate search NCC parameters for the photometric match
+        #    meanSearch = np.mean(searchPM)
+        #    stdSearch = np.sqrt(np.var(searchPM))
+
+        #    ## Run over the mid patch to find the bounding box which yield the maximum NCC similarity
+        #    # Initial guess - the mid BB prediction
+        #    yMin = int(mid.shape[1]*searchBBoxGTScaled[i,1])
+        #    yMax = int(mid.shape[1]*searchBBoxGTScaled[i,3])
+        #    xMin = int(mid.shape[2]*searchBBoxGTScaled[i,0])
+        #    xMax = int(mid.shape[2]*searchBBoxGTScaled[i,2])
+
+        #    firstCheck = True
+        #    foundGoodMatch = False
+        #    for xShift in range(-32, 32, 4):
+        #        for yShift in range(-32, 32, 4):
+        #            for xVar in range(-2, 2, 2):
+        #                for yVar in range(-2, 2, 2):
+
+        #                    if foundGoodMatch:
+        #                        continue
+
+        #                    # Extract mid object prediction for the PM loss
+        #                    midPM = mid[i, yMin+yShift+yVar:yMax+yShift-yVar, xMin+xShift+xVar:xMax+xShift-xVar, :]
+        #                    if midPM.size == 0:
+        #                        countBadMidBB += 1
+        #                        continue
+        #                    midTargetPM = cv2.resize(midPM, (targetPM.shape[2], targetPM.shape[1]))
+        #                    midSearchPM = cv2.resize(midPM, (searchPM.shape[1], searchPM.shape[0]))
+
+        #                    ## Calculate mid NCC parameters for the photometric match
+        #                    meanMidTargetPM = np.mean(midTargetPM)
+        #                    stdMidTargetPM = np.sqrt(np.var(midTargetPM))
+        #                    meanMidSearchPM = np.mean(midSearchPM)
+        #                    stdMidSearchPM = np.sqrt(np.var(midSearchPM))
+
+        #                    try:
+        #                        nccTargetMid = np.mean(((targetPM[i]-meanTarget[i])/stdTarget[i])*((midTargetPM-meanMidTargetPM)/stdMidTargetPM))
+        #                        nccMidSearch = np.mean(((searchPM-meanSearch)/stdSearch)*((midSearchPM-meanMidSearchPM)/stdMidSearchPM))
+        #                    except:
+        #                        print "Couldn't calculate NCC..."
+        #                        continue
+
+        #                    if firstCheck:
+        #                        nccMax[i] = nccTargetMid + nccMidSearch
+        #                        pmMidBB[i] = [((xMin+xShift+xVar)/float(mid.shape[2]))-widthShift[i], ((yMin+yShift+yVar)/float(mid.shape[1]))-heightShift[i],
+        #                                      ((xMax+xShift-xVar)/float(mid.shape[2]))+widthShift[i], ((yMax+yShift-yVar)/float(mid.shape[1]))+heightShift[i]]
+        #                    else:
+        #                        if nccMax[i] < nccTargetMid + nccMidSearch:
+        #                            nccMax[i] = nccTargetMid + nccMidSearch
+        #                            pmMidBB[i] = [((xMin+xShift+xVar)/float(mid.shape[2]))-widthShift[i], ((yMin+yShift+yVar)/float(mid.shape[1]))-heightShift[i],
+        #                                          ((xMax+xShift-xVar)/float(mid.shape[2]))+widthShift[i], ((yMax+yShift-yVar)/float(mid.shape[1]))+heightShift[i]]
+
+        #                    if nccMax[i] > 1.6 or nccTargetMid > 0.9 or nccMidSearch > 0.9:
+        #                        foundGoodMatch = True
+
+
+
+        ## return the final results
+        return nccMax, pmMidBB, countBadSearchBB, countBadMidBB
 
 
 
