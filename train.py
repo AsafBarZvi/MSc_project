@@ -14,8 +14,8 @@ import os
 from timer import timer_dict , timerStats
 from default import config , printCfg
 
-#import net_scheme1 as net
-import net
+import net_scheme1 as net
+#import net
 #import ipdb
 #from tensorflow.python import debug as tf_debug
 
@@ -241,10 +241,10 @@ def main():
 
                 with timer_dict['summary']:
                     for i in range(5):
-                        bbox_mid = np.abs(res['bbox_mid'][i]*399).astype(np.int)
-                        bbox_search = np.abs(res['bbox_search'][i]*399).astype(np.int)
-                        bboxPM = np.abs(pmMidBB[i,:]*399).astype(np.int)
-                        bboxGT = np.abs(cur_batch[3][i,:]*399).astype(np.int)
+                        bbox_mid = np.abs(res['bbox_mid'][i]*226).astype(np.int)
+                        bbox_search = np.abs(res['bbox_search'][i]*226).astype(np.int)
+                        bboxPM = np.abs(pmMidBB[i,:]*226).astype(np.int)
+                        bboxGT = np.abs(cur_batch[3][i,:]*226).astype(np.int)
                         training_imgs_samples.append((np.copy(cur_batch[0][i]), np.copy(cur_batch[1][i]), np.copy(cur_batch[2][i]), bbox_mid, bbox_search, bboxPM, bboxGT))
 
                 #timerStats()
@@ -285,12 +285,12 @@ def main():
                 for idxTest in tqdm(range(n_valid_batches), total=n_valid_batches, desc=description, unit='batches', leave=False):
 
                     cur_batch = sess.run(dp.batch_test_queue)
-                    bboxMidGT = np.concatenate((cur_batch[3][:,:4], nccDummy), axis=1)
+                    bboxMidGT_ncc = np.concatenate((cur_batch[3][:,:4], nccDummy), axis=1)
 
                     [loss, res] = sess.run([tracknet.loss, tracknet.result], feed_dict={tracknet.target: cur_batch[0],
                                                                                         tracknet.mid: cur_batch[1],
                                                                                         tracknet.search: cur_batch[2],
-                                                                                        tracknet.bboxMid: bboxMidGT,
+                                                                                        tracknet.bboxMid: bboxMidGT_ncc,
                                                                                         tracknet.bbox: cur_batch[3][:,4:]})
 
                     validation_loss.add(loss)
@@ -298,10 +298,10 @@ def main():
 
                 with timer_dict['summary']:
                     for i in range(5):
-                        bbox_mid = np.abs(res['bbox_mid'][i]*399).astype(np.int)
-                        bbox_search = np.abs(res['bbox_search'][i]*399).astype(np.int)
-                        bboxMidGT = np.abs(cur_batch[3][i,:4]*399).astype(np.int)
-                        bboxGT = np.abs(cur_batch[3][i,4:]*399).astype(np.int)
+                        bbox_mid = np.abs(res['bbox_mid'][i]*226).astype(np.int)
+                        bbox_search = np.abs(res['bbox_search'][i]*226).astype(np.int)
+                        bboxMidGT = np.abs(cur_batch[3][i,:4]*226).astype(np.int)
+                        bboxGT = np.abs(cur_batch[3][i,4:]*226).astype(np.int)
                         validation_imgs_samples.append((np.copy(cur_batch[0][i]), np.copy(cur_batch[1][i]), np.copy(cur_batch[2][i]), bbox_mid, bbox_search, bboxMidGT, bboxGT))
                 #timerStats()
 
@@ -314,7 +314,7 @@ def main():
                 summary = sess.run(merged_summary,feed_dict={tracknet.target: cur_batch[0],
                                                              tracknet.mid: cur_batch[1],
                                                              tracknet.search: cur_batch[2],
-                                                             tracknet.bboxMid: bboxMidGT,
+                                                             tracknet.bboxMid: bboxMidGT_ncc,
                                                              tracknet.bbox: cur_batch[3][:,4:]})
 
                 summary_writer.add_summary(summary, iteraton)

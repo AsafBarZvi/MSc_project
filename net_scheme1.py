@@ -340,8 +340,8 @@ class TRACKNET:
 
             firstCheck = True
             foundGoodMatch = False
-            for xShift in range(-30, 30, 6):
-                for yShift in range(-30, 30, 6):
+            for xShift in range(-32, 32, 4):
+                for yShift in range(-32, 32, 4):
                     for xVar in range(-2, 2, 2):
                         for yVar in range(-2, 2, 2):
 

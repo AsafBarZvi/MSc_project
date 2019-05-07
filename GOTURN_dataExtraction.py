@@ -1,10 +1,10 @@
-import cv2
 import tensorflow as tf
 import tensorboard
 import numpy as np
 #from matplotlib import pyplot as plt
 import glob
 import re
+import cv2
 import os
 import xml.etree.ElementTree as ET
 from creatTrainTestLists import creatLists
@@ -16,11 +16,11 @@ augShift = 1./5
 augScale = 1./15
 minScale = 0.6
 maxScale = 1.4
-k1 = 1
-k2 = 4
+k1 = 3
+k2 = 3
 k3 = 10
 
-dataExtDir = "./dataExt_scheme2"
+dataExtDir = "./dataExt_scheme1"
 if not os.path.exists(dataExtDir):
     os.mkdir(dataExtDir)
 
@@ -449,8 +449,8 @@ def votDataExt():
 
 if __name__ == '__main__':
 
-    #alovDataExt()
-    #imageNetDataExt()
-    #votDataExt()
+    alovDataExt()
+    imageNetDataExt()
+    votDataExt()
     creatLists(dataExtDir)
 
