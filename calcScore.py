@@ -93,17 +93,17 @@ def main():
             iouTotSingleVid = 0
             iou = 0
             startTimer = time.time()
-            for frameAnnIndx in xrange(2, len(framesAnn), 2):
+            for frameAnnIndx in xrange(2, len(framesAnn), 1):
                 # Extract GT annotation or predicted annotation
                 annParseTarget = [int(float(number)) for number in framesAnn[frameAnnIndx-2].split(',')]
                 annParseMid = [int(float(number)) for number in framesAnn[frameAnnIndx-1].split(',')]
                 annParseSearch = [int(float(number)) for number in framesAnn[frameAnnIndx].split(',')]
 
-                if iou < 0.5:
+                if iou < 0.3:
                     initCounterSingleVid += 1
                     [bbx1, bby1, bbx2, bby2] = extBBvot(annParseTarget)
                 else:
-                    [bbx1, bby1, bbx2, bby2] = predBB_search
+                    [bbx1, bby1, bbx2, bby2] = predBB_mid
 
                 # Read the pair of frames
                 targetFrame = cv2.imread(frames[frameAnnIndx-2])
@@ -191,13 +191,13 @@ def main():
                 gtBB = [bbx1GT_mid, bby1GT_mid, bbx2GT_mid, bby2GT_mid]
                 iou = bb_intersection_over_union(predBB_mid, gtBB)
                 iouTotSingleVid += iou
-                if iou < 0.3:
-                    initCounterSingleVid += 1
+                #if iou < 0.3:
+                #    initCounterSingleVid += 1
 
-                [bbx1GT_search, bby1GT_search, bbx2GT_search, bby2GT_search] = extBBvot(annParseSearch)
-                gtBB = [bbx1GT_search, bby1GT_search, bbx2GT_search, bby2GT_search]
-                iou = bb_intersection_over_union(predBB_search, gtBB)
-                iouTotSingleVid += iou
+                #[bbx1GT_search, bby1GT_search, bbx2GT_search, bby2GT_search] = extBBvot(annParseSearch)
+                #gtBB = [bbx1GT_search, bby1GT_search, bbx2GT_search, bby2GT_search]
+                #iou = bb_intersection_over_union(predBB_search, gtBB)
+                #iouTotSingleVid += iou
 
 
             # Calculate accuracy, robustness and overall error per current video
