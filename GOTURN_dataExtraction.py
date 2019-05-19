@@ -19,8 +19,9 @@ maxScale = 1.4
 k1 = 3
 k2 = 3
 k3 = 10
+k4 = 3 #Bounding box scale
 
-dataExtDir = "./dataExt_scheme1"
+dataExtDir = "./dataExt_scheme1_targetAug"
 if not os.path.exists(dataExtDir):
     os.mkdir(dataExtDir)
 
@@ -87,7 +88,7 @@ def viewer(img):
     plt.imshow(img[:,:,::-1])
     fig.show()
 
-def goturnAugmentation(augIdx, cxPrev, cyPrev, bbx1Prev, bby1Prev, bbx2Prev, bby2Prev, frameRes, bbx1Curr, bby1Curr, bbx2Curr, bby2Curr):
+def goturnAugmentation(augIdx, cxPrev, cyPrev, bbx1Prev, bby1Prev, bbx2Prev, bby2Prev, frameRes, bbx1Curr, bby1Curr, bbx2Curr, bby2Curr, BBoxScale=k4):
     width = bbx2Prev - bbx1Prev
     height = bby2Prev - bby1Prev
     cxPrev = bbx1Prev + (width/2)
@@ -98,8 +99,8 @@ def goturnAugmentation(augIdx, cxPrev, cyPrev, bbx1Prev, bby1Prev, bbx2Prev, bby
     newCy = -1
 
     if augIdx == 0:
-        newHeight = frameRes[0]-1 if k2*height > frameRes[0]-1 else k2*height
-        newWidth = frameRes[1]-1 if k2*width > frameRes[1]-1 else k2*width
+        newHeight = frameRes[0]-1 if BBoxScale*height > frameRes[0]-1 else BBoxScale*height
+        newWidth = frameRes[1]-1 if BBoxScale*width > frameRes[1]-1 else BBoxScale*width
         newCx = cxPrev
         newCy = cyPrev
         startCropCurrY = 0 if newCy-newHeight/2 < 0 else newCy-newHeight/2
@@ -113,7 +114,7 @@ def goturnAugmentation(augIdx, cxPrev, cyPrev, bbx1Prev, bby1Prev, bbx2Prev, bby
         numOfTries = 10
         while (newWidth < 0 or newWidth > frameRes[1]-1) and numOfTries:
             scaleW = max(minScale, min(maxScale, np.random.laplace(1, augScale)))
-            newWidth = int(k2*width*scaleW)
+            newWidth = int(BBoxScale*width*scaleW)
             numOfTries -= 1
             if numOfTries == 0:
                 return [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, False]
@@ -121,14 +122,14 @@ def goturnAugmentation(augIdx, cxPrev, cyPrev, bbx1Prev, bby1Prev, bbx2Prev, bby
         numOfTries = 10
         while (newHeight < 0 or newHeight > frameRes[0]-1) and numOfTries:
             scaleH = max(minScale, min(maxScale, np.random.laplace(1, augScale)))
-            newHeight = int(k2*height*scaleH)
+            newHeight = int(BBoxScale*height*scaleH)
             numOfTries -= 1
             if numOfTries == 0:
                 return [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, False]
 
         numOfTries = 10
         firstIter = True
-        while (firstIter or newCx < cxPrev-((width*k2)/2) or newCx > cxPrev+((width*k2)/2) or newCx-newWidth/2 < 0 or newCx+newWidth/2 > frameRes[1]-1) and numOfTries:
+        while (firstIter or newCx < cxPrev-((width*BBoxScale)/2) or newCx > cxPrev+((width*BBoxScale)/2) or newCx-newWidth/2 < 0 or newCx+newWidth/2 > frameRes[1]-1) and numOfTries:
             newCx = cxPrev + width*np.random.laplace(0, augShift)
             newCx = int(min(frameRes[1]-newWidth/2, max(newWidth/2,newCx)))
             numOfTries -= 1
@@ -138,7 +139,7 @@ def goturnAugmentation(augIdx, cxPrev, cyPrev, bbx1Prev, bby1Prev, bbx2Prev, bby
 
         numOfTries = 10
         firstIter = True
-        while (firstIter or newCy < cyPrev-((height*k2)/2) or newCy > cyPrev+((height*k2)/2) or newCy-newHeight/2 < 0 or newCy+newHeight/2 > frameRes[0]-1) and numOfTries:
+        while (firstIter or newCy < cyPrev-((height*BBoxScale)/2) or newCy > cyPrev+((height*BBoxScale)/2) or newCy-newHeight/2 < 0 or newCy+newHeight/2 > frameRes[0]-1) and numOfTries:
             newCy = cyPrev + height*np.random.laplace(0, augShift)
             newCy = int(min(frameRes[1]-newHeight/2, max(newHeight/2,newCy)))
             numOfTries -= 1
@@ -223,29 +224,44 @@ def alovDataExt():
                 startCropPrevX = 0 if cxPrev-bbPadsPrevW < 0 else cxPrev-bbPadsPrevW
                 endCropPrevX = framePrev.shape[1]-1 if cxPrev+bbPadsPrevW > framePrev.shape[1]-1 else cxPrev+bbPadsPrevW
 
-                framePrevCropPads = framePrev[startCropPrevY:endCropPrevY, startCropPrevX:endCropPrevX]
-                if endCropPrevY - startCropPrevY < 2*bbPadsPrevH:
-                    zPads = np.zeros(((2*bbPadsPrevH)-(endCropPrevY-startCropPrevY), framePrevCropPads.shape[1], 3), dtype=np.uint8)
-                    if startCropPrevY == 0:
-                        framePrevCropPads = np.concatenate((zPads, framePrevCropPads), axis=0)
-                    else:
-                        framePrevCropPads = np.concatenate((framePrevCropPads, zPads), axis=0)
+                #framePrevCropPads = framePrev[startCropPrevY:endCropPrevY, startCropPrevX:endCropPrevX]
+                #if endCropPrevY - startCropPrevY < 2*bbPadsPrevH:
+                #    zPads = np.zeros(((2*bbPadsPrevH)-(endCropPrevY-startCropPrevY), framePrevCropPads.shape[1], 3), dtype=np.uint8)
+                #    if startCropPrevY == 0:
+                #        framePrevCropPads = np.concatenate((zPads, framePrevCropPads), axis=0)
+                #    else:
+                #        framePrevCropPads = np.concatenate((framePrevCropPads, zPads), axis=0)
 
-                if endCropPrevX - startCropPrevX < 2*bbPadsPrevW:
-                    zPads = np.zeros((framePrevCropPads.shape[0], (2*bbPadsPrevW)-(endCropPrevX-startCropPrevX), 3), dtype=np.uint8)
-                    if startCropPrevX == 0:
-                        framePrevCropPads = np.concatenate((zPads, framePrevCropPads), axis=1)
-                    else:
-                        framePrevCropPads = np.concatenate((framePrevCropPads, zPads), axis=1)
+                #if endCropPrevX - startCropPrevX < 2*bbPadsPrevW:
+                #    zPads = np.zeros((framePrevCropPads.shape[0], (2*bbPadsPrevW)-(endCropPrevX-startCropPrevX), 3), dtype=np.uint8)
+                #    if startCropPrevX == 0:
+                #        framePrevCropPads = np.concatenate((zPads, framePrevCropPads), axis=1)
+                #    else:
+                #        framePrevCropPads = np.concatenate((framePrevCropPads, zPads), axis=1)
 
-                fileNameTarget = "{}/{}_prev_{}".format(alovExtdataTarget, (frames[annParsePrev[0]-1].split("/"))[-2], annParsePrev[0])
-                cv2.imwrite(fileNameTarget + ".jpg", framePrevCropPads)
+                #fileNameTarget = "{}/{}_prev_{}".format(alovExtdataTarget, (frames[annParsePrev[0]-1].split("/"))[-2], annParsePrev[0])
+                #cv2.imwrite(fileNameTarget + ".jpg", framePrevCropPads)
 
                 #viewer(framePrev)
                 #cv2.rectangle(framePrev, (bbx1Prev,bby1Prev), (bbx2Prev,bby2Prev), (0,255,0), 3)
                 #viewer(framePrevCropPads)
                 invalidAugCounter = 0
                 for augIdx in range(k3):
+                    if augIdx == 0:
+                        framePrevCropPads = framePrev[startCropPrevY:endCropPrevY, startCropPrevX:endCropPrevX]
+                        fileNameTarget = "{}/{}_prev_{}_{}".format(alovExtdataTarget, (frames[annParsePrev[0]-1].split("/"))[-2], annParsePrev[0], augIdx)
+                        cv2.imwrite(fileNameTarget + ".jpg", framePrevCropPads)
+                    else:
+                        ## Augmented the targert image as well, for non centerd detection robusteness
+                        [bbx1CurrCrop, bby1CurrCrop, bbx2CurrCrop, bby2CurrCrop, startCropCurrY, endCropCurrY, startCropCurrX, endCropCurrX, bbx1New, bby1New, valid] = goturnAugmentation(augIdx, cxPrev,
+                                cyPrev, bbx1Prev, bby1Prev, bbx2Prev, bby2Prev, frameCurr.shape[:2], bbx1Curr, bby1Curr, bbx2Curr, bby2Curr)
+                        if not valid:
+                            invalidAugCounter += 1
+                            continue
+                        framePrevCropPads = framePrev[startCropCurrY:endCropCurrY, startCropCurrX:endCropCurrX]
+                        fileNameTarget = "{}/{}_prev_{}_{}".format(alovExtdataTarget, (frames[annParsePrev[0]-1].split("/"))[-2], annParsePrev[0], augIdx)
+                        cv2.imwrite(fileNameTarget + ".jpg", framePrevCropPads)
+
                     [bbx1CurrCrop, bby1CurrCrop, bbx2CurrCrop, bby2CurrCrop, startCropCurrY, endCropCurrY, startCropCurrX, endCropCurrX, bbx1New, bby1New, valid] = goturnAugmentation(augIdx, cxPrev,
                             cyPrev, bbx1Prev, bby1Prev, bbx2Prev, bby2Prev, frameCurr.shape[:2], bbx1Curr, bby1Curr, bbx2Curr, bby2Curr)
                     if not valid:
@@ -322,14 +338,29 @@ def imageNetDataExt():
         startCropPrevX = 0 if cxPrev-bbPadsPrevW < 0 else cxPrev-bbPadsPrevW
         endCropPrevX = framePrev.shape[1]-1 if cxPrev+bbPadsPrevW > framePrev.shape[1]-1 else cxPrev+bbPadsPrevW
 
-        framePrevCropPads = framePrev[startCropPrevY:endCropPrevY, startCropPrevX:endCropPrevX]
-        fileNameTarget = "{}/{}_prev".format(imageNetExtdataTarget, image.split("/")[-1][:-5])
-        cv2.imwrite(fileNameTarget + ".jpg", framePrevCropPads)
+        #framePrevCropPads = framePrev[startCropPrevY:endCropPrevY, startCropPrevX:endCropPrevX]
+        #fileNameTarget = "{}/{}_prev".format(imageNetExtdataTarget, image.split("/")[-1][:-5])
+        #cv2.imwrite(fileNameTarget + ".jpg", framePrevCropPads)
 
         #cv2.rectangle(framePrev, (bbx1Prev,bby1Prev), (bbx2Prev,bby2Prev), (0,255,0), 3)
         #viewer(framePrevCropPads)
         invalidAugCounter = 0
         for augIdx in range(k3):
+            if augIdx == 0:
+                framePrevCropPads = framePrev[startCropPrevY:endCropPrevY, startCropPrevX:endCropPrevX]
+                fileNameTarget = "{}/{}_prev_{}".format(imageNetExtdataTarget, image.split("/")[-1][:-5], augIdx)
+                cv2.imwrite(fileNameTarget + ".jpg", framePrevCropPads)
+            else:
+                ## Augmented the targert image as well, for non centerd detection robusteness
+                [bbx1CurrCrop, bby1CurrCrop, bbx2CurrCrop, bby2CurrCrop, startCropCurrY, endCropCurrY, startCropCurrX, endCropCurrX, bbx1New, bby1New, valid] = goturnAugmentation(augIdx, cxPrev,
+                        cyPrev, bbx1Prev, bby1Prev, bbx2Prev, bby2Prev, framePrev.shape[:2], bbx1Prev, bby1Prev, bbx2Prev, bby2Prev)
+                if not valid:
+                    invalidAugCounter += 1
+                    continue
+                framePrevCropPads = framePrev[startCropCurrY:endCropCurrY, startCropCurrX:endCropCurrX]
+                fileNameTarget = "{}/{}_prev_{}".format(imageNetExtdataTarget, image.split("/")[-1][:-5], augIdx)
+                cv2.imwrite(fileNameTarget + ".jpg", framePrevCropPads)
+
             [bbx1CurrCrop, bby1CurrCrop, bbx2CurrCrop, bby2CurrCrop, startCropCurrY, endCropCurrY, startCropCurrX, endCropCurrX, bbx1New, bby1New, valid] = goturnAugmentation(augIdx, cxPrev,
                     cyPrev, bbx1Prev, bby1Prev, bbx2Prev, bby2Prev, framePrev.shape[:2], bbx1Prev, bby1Prev, bbx2Prev, bby2Prev)
             if not valid:
@@ -404,15 +435,31 @@ def votDataExt():
             startCropPrevX = 0 if cxPrev-bbPadsPrevW < 0 else cxPrev-bbPadsPrevW
             endCropPrevX = framePrev.shape[1]-1 if cxPrev+bbPadsPrevW > framePrev.shape[1]-1 else cxPrev+bbPadsPrevW
 
-            framePrevCropPads = framePrev[startCropPrevY:endCropPrevY, startCropPrevX:endCropPrevX]
-            fileNameTarget = "{}/{}_prev_{}".format(votExtdataTarget, video.split("/")[-1], frames[frameAnnIndx-2].split("/")[-1][:-4])
-            cv2.imwrite(fileNameTarget + ".jpg", framePrevCropPads)
+            #framePrevCropPads = framePrev[startCropPrevY:endCropPrevY, startCropPrevX:endCropPrevX]
+            #fileNameTarget = "{}/{}_prev_{}".format(votExtdataTarget, video.split("/")[-1], frames[frameAnnIndx-2].split("/")[-1][:-4])
+            #cv2.imwrite(fileNameTarget + ".jpg", framePrevCropPads)
 
             #viewer(framePrev)
             #cv2.rectangle(framePrev, (bbx1Prev,bby1Prev), (bbx2Prev,bby2Prev), (0,255,0), 3)
             #viewer(framePrevCropPads)
             invalidAugCounter = 0
             for augIdx in range(k3):
+                if augIdx == 0:
+                    framePrevCropPads = framePrev[startCropPrevY:endCropPrevY, startCropPrevX:endCropPrevX]
+                    fileNameTarget = "{}/{}_prev_{}_{}".format(votExtdataTarget, video.split("/")[-1], frames[frameAnnIndx-2].split("/")[-1][:-4], augIdx)
+                    cv2.imwrite(fileNameTarget + ".jpg", framePrevCropPads)
+                else:
+                    ## Augmented the targert image as well, for non centerd detection robusteness
+                    [bbx1CurrCrop, bby1CurrCrop, bbx2CurrCrop, bby2CurrCrop, startCropCurrY, endCropCurrY, startCropCurrX, endCropCurrX, bbx1New, bby1New, valid] = goturnAugmentation(augIdx, cxPrev,
+                            cyPrev, bbx1Prev, bby1Prev, bbx2Prev, bby2Prev, frameCurr.shape[:2], bbx1Curr, bby1Curr, bbx2Curr, bby2Curr)
+                    if not valid:
+                        invalidAugCounter += 1
+                        continue
+                    framePrevCropPads = framePrev[startCropCurrY:endCropCurrY, startCropCurrX:endCropCurrX]
+                    fileNameTarget = "{}/{}_prev_{}_{}".format(votExtdataTarget, video.split("/")[-1], frames[frameAnnIndx-2].split("/")[-1][:-4], augIdx)
+                    cv2.imwrite(fileNameTarget + ".jpg", framePrevCropPads)
+
+
                 [bbx1CurrCrop, bby1CurrCrop, bbx2CurrCrop, bby2CurrCrop, startCropCurrY, endCropCurrY, startCropCurrX, endCropCurrX, bbx1New, bby1New, valid] = goturnAugmentation(augIdx, cxPrev,
                         cyPrev, bbx1Prev, bby1Prev, bbx2Prev, bby2Prev, frameCurr.shape[:2], bbx1Curr, bby1Curr, bbx2Curr, bby2Curr)
                 if not valid:
@@ -449,7 +496,7 @@ def votDataExt():
 
 if __name__ == '__main__':
 
-    alovDataExt()
+    #alovDataExt()
     imageNetDataExt()
     votDataExt()
     creatLists(dataExtDir)
