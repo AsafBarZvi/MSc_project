@@ -60,16 +60,16 @@ Overall error = 0.248
 ## Results, data scheme 1, PM as pre detector, using only the mid weakly supervised prediction
 ## Robustnes IoU threshold - 0.5
 VOT results summary:
-Average IoU error = 0.416
-Robustnes error = 0.261
-Overall error = 0.3385
+Average IoU error = 0.42
+Robustnes error = 0.235
+Overall error = 0.3275
 
 ## Results, data scheme 1, PM as pre detector, using only the mid weakly supervised prediction
 ## Robustnes IoU threshold - 0.3
 VOT results summary:
-Average IoU error = 0.52
-Robustnes error = 0.09
-Overall error = 0.305
+Average IoU error = 0.491
+Robustnes error = 0.076
+Overall error = 0.283
 
 #####################
 
@@ -85,23 +85,22 @@ Overall error = 0.376
 ## Results, data scheme 2, PM as pre detector, using the theird, supervised, image prediction
 ## Robustnes IoU threshold - 0.3,0.5
 VOT results summary:
-Average IoU error = 0.
-Robustnes error = 0.
-Overall error = 0.
+Average IoU error = 0.46
+Robustnes error = 0.225
+Overall error = 0.3425
 
 ## Results, data scheme 2, PM as pre detector, using only the mid weakly supervised prediction
 ## Robustnes IoU threshold - 0.5
-
+Average IoU error = 0.467
+Robustnes error = 0.364
+Overall error = 0.4155
 
 ## Results, data scheme 2, PM as pre detector, using only the mid weakly supervised prediction
 ## Robustnes IoU threshold - 0.3
-
+Average IoU error = 0.518
+Robustnes error = 0.142
+Overall error = 0.33
 
 #####################
-
-
-
-
-
 
 
