@@ -191,7 +191,7 @@ class TRACKNET:
             ## Calculate bounding box regression loss for the mid patch
             # First, filter the invalid bounding boxes
             bbCordSum = tf.reduce_sum(pmMidBB[:,:4], axis=1)
-            validMask = tf.tile(tf.reshape(tf.logical_and(tf.greater(bbCordSum, 0.01), tf.greater(pmMidBB[:,4],1.5)), [self.batch_size,1]), [1,4])
+            validMask = tf.tile(tf.reshape(tf.logical_and(tf.greater(bbCordSum, 0.01), tf.greater(pmMidBB[:,4],0.75)), [self.batch_size,1]), [1,4])
             pmMidBB = tf.reshape(tf.boolean_mask(pmMidBB[:,:4], validMask), [-1,4])
             fc_output_mid = tf.reshape(tf.boolean_mask(fc_output_mid, validMask), [-1,4])
             self.checks = pmMidBB
@@ -289,17 +289,17 @@ class TRACKNET:
         searchBBoxGT = inData[3]
         searchBBoxGTScaled = searchBBoxGT*[1.2, 1.2, 0.9, 0.9]
 
-        target = inData[0]
+        #target = inData[0]
         mid = inData[1]
         search = inData[2]
 
         ## Extract target object for the PM match
-        targetPM = target
-        targetPM = targetPM[:, targetPM.shape[1]*2/5:targetPM.shape[1]*3/5, targetPM.shape[2]*2/5:targetPM.shape[2]*3/5, :]
+        #targetPM = target
+        #targetPM = targetPM[:, targetPM.shape[1]*2/5:targetPM.shape[1]*3/5, targetPM.shape[2]*2/5:targetPM.shape[2]*3/5, :]
 
         ## Calculate target NCC parameters for the photometric match
-        meanTarget = np.mean(targetPM, axis=(1,2,3))
-        stdTarget = np.sqrt(np.var(targetPM, axis=(1,2,3)))
+        #meanTarget = np.mean(targetPM, axis=(1,2,3))
+        #stdTarget = np.sqrt(np.var(targetPM, axis=(1,2,3)))
 
         ## Run over the batch and match the most similar mid bounding box to the target and search
         nccMax = -2*np.ones((self.batch_size), dtype=np.float32)
@@ -340,8 +340,8 @@ class TRACKNET:
 
             firstCheck = True
             foundGoodMatch = False
-            for xShift in range(-32, 32, 4):
-                for yShift in range(-32, 32, 4):
+            for xShift in range(-28, 28, 4):
+                for yShift in range(-28, 28, 4):
                     for xVar in range(-2, 2, 2):
                         for yVar in range(-2, 2, 2):
 
@@ -353,33 +353,36 @@ class TRACKNET:
                             if midPM.size == 0:
                                 countBadMidBB += 1
                                 continue
-                            midTargetPM = cv2.resize(midPM, (targetPM.shape[2], targetPM.shape[1]))
+                            #midTargetPM = cv2.resize(midPM, (targetPM.shape[2], targetPM.shape[1]))
                             midSearchPM = cv2.resize(midPM, (searchPM.shape[1], searchPM.shape[0]))
 
                             ## Calculate mid NCC parameters for the photometric match
-                            meanMidTargetPM = np.mean(midTargetPM)
-                            stdMidTargetPM = np.sqrt(np.var(midTargetPM))
+                            #meanMidTargetPM = np.mean(midTargetPM)
+                            #stdMidTargetPM = np.sqrt(np.var(midTargetPM))
                             meanMidSearchPM = np.mean(midSearchPM)
                             stdMidSearchPM = np.sqrt(np.var(midSearchPM))
 
                             try:
-                                nccTargetMid = np.mean(((targetPM[i]-meanTarget[i])/stdTarget[i])*((midTargetPM-meanMidTargetPM)/stdMidTargetPM))
+                                #nccTargetMid = np.mean(((targetPM[i]-meanTarget[i])/stdTarget[i])*((midTargetPM-meanMidTargetPM)/stdMidTargetPM))
                                 nccMidSearch = np.mean(((searchPM-meanSearch)/stdSearch)*((midSearchPM-meanMidSearchPM)/stdMidSearchPM))
                             except:
                                 print "Couldn't calculate NCC..."
                                 continue
 
                             if firstCheck:
-                                nccMax[i] = nccTargetMid + nccMidSearch
+                                #nccMax[i] = nccTargetMid + nccMidSearch
+                                nccMax[i] = nccMidSearch
                                 pmMidBB[i] = [((xMin+xShift+xVar)/float(mid.shape[2]))*(1/1.2), ((yMin+yShift+yVar)/float(mid.shape[1]))*(1/1.2),
                                               ((xMax+xShift-xVar)/float(mid.shape[2]))*(1/0.9), ((yMax+yShift-yVar)/float(mid.shape[1]))*(1/0.9)]
                             else:
                                 if nccMax[i] < nccTargetMid + nccMidSearch:
-                                    nccMax[i] = nccTargetMid + nccMidSearch
+                                    #nccMax[i] = nccTargetMid + nccMidSearch
+                                    nccMax[i] = nccMidSearch
                                     pmMidBB[i] = [((xMin+xShift+xVar)/float(mid.shape[2]))*(1/1.2), ((yMin+yShift+yVar)/float(mid.shape[1]))*(1/1.2),
                                                   ((xMax+xShift-xVar)/float(mid.shape[2]))*(1/0.9), ((yMax+yShift-yVar)/float(mid.shape[1]))*(1/0.9)]
 
-                            if nccMax[i] > 1.6 or nccTargetMid > 0.9 or nccMidSearch > 0.9:
+                            #if nccMax[i] > 1.6 or nccTargetMid > 0.9 or nccMidSearch > 0.9:
+                            if nccMidSearch > 0.8:
                                 foundGoodMatch = True
 
 

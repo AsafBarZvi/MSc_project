@@ -16,12 +16,12 @@ augShift = 1./5
 augScale = 1./15
 minScale = 0.6
 maxScale = 1.4
-k1 = 3
-k2 = 3
+k1 = 1
+k2 = 4
 k3 = 10
-k4 = 3 #Bounding box scale
+k4 = 1 #Bounding box scale
 
-dataExtDir = "./dataExt_scheme1_targetAug"
+dataExtDir = "./dataExt_scheme2_targetAug"
 if not os.path.exists(dataExtDir):
     os.mkdir(dataExtDir)
 
@@ -88,7 +88,7 @@ def viewer(img):
     plt.imshow(img[:,:,::-1])
     fig.show()
 
-def goturnAugmentation(augIdx, cxPrev, cyPrev, bbx1Prev, bby1Prev, bbx2Prev, bby2Prev, frameRes, bbx1Curr, bby1Curr, bbx2Curr, bby2Curr, BBoxScale=k4):
+def goturnAugmentation(augIdx, cxPrev, cyPrev, bbx1Prev, bby1Prev, bbx2Prev, bby2Prev, frameRes, bbx1Curr, bby1Curr, bbx2Curr, bby2Curr, BBoxScale=k2):
     width = bbx2Prev - bbx1Prev
     height = bby2Prev - bby1Prev
     cxPrev = bbx1Prev + (width/2)
@@ -254,7 +254,7 @@ def alovDataExt():
                     else:
                         ## Augmented the targert image as well, for non centerd detection robusteness
                         [bbx1CurrCrop, bby1CurrCrop, bbx2CurrCrop, bby2CurrCrop, startCropCurrY, endCropCurrY, startCropCurrX, endCropCurrX, bbx1New, bby1New, valid] = goturnAugmentation(augIdx, cxPrev,
-                                cyPrev, bbx1Prev, bby1Prev, bbx2Prev, bby2Prev, frameCurr.shape[:2], bbx1Curr, bby1Curr, bbx2Curr, bby2Curr)
+                                cyPrev, bbx1Prev, bby1Prev, bbx2Prev, bby2Prev, frameCurr.shape[:2], bbx1Curr, bby1Curr, bbx2Curr, bby2Curr, k4)
                         if not valid:
                             invalidAugCounter += 1
                             continue
@@ -353,7 +353,7 @@ def imageNetDataExt():
             else:
                 ## Augmented the targert image as well, for non centerd detection robusteness
                 [bbx1CurrCrop, bby1CurrCrop, bbx2CurrCrop, bby2CurrCrop, startCropCurrY, endCropCurrY, startCropCurrX, endCropCurrX, bbx1New, bby1New, valid] = goturnAugmentation(augIdx, cxPrev,
-                        cyPrev, bbx1Prev, bby1Prev, bbx2Prev, bby2Prev, framePrev.shape[:2], bbx1Prev, bby1Prev, bbx2Prev, bby2Prev)
+                        cyPrev, bbx1Prev, bby1Prev, bbx2Prev, bby2Prev, framePrev.shape[:2], bbx1Prev, bby1Prev, bbx2Prev, bby2Prev, k4)
                 if not valid:
                     invalidAugCounter += 1
                     continue
@@ -451,7 +451,7 @@ def votDataExt():
                 else:
                     ## Augmented the targert image as well, for non centerd detection robusteness
                     [bbx1CurrCrop, bby1CurrCrop, bbx2CurrCrop, bby2CurrCrop, startCropCurrY, endCropCurrY, startCropCurrX, endCropCurrX, bbx1New, bby1New, valid] = goturnAugmentation(augIdx, cxPrev,
-                            cyPrev, bbx1Prev, bby1Prev, bbx2Prev, bby2Prev, frameCurr.shape[:2], bbx1Curr, bby1Curr, bbx2Curr, bby2Curr)
+                            cyPrev, bbx1Prev, bby1Prev, bbx2Prev, bby2Prev, frameCurr.shape[:2], bbx1Curr, bby1Curr, bbx2Curr, bby2Curr, k4)
                     if not valid:
                         invalidAugCounter += 1
                         continue
@@ -496,7 +496,7 @@ def votDataExt():
 
 if __name__ == '__main__':
 
-    #alovDataExt()
+    alovDataExt()
     imageNetDataExt()
     votDataExt()
     creatLists(dataExtDir)
